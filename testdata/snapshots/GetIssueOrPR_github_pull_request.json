@@ -1,6 +1,14 @@
 {
   "test_name": "GetIssueOrPR_github_pull_request",
-  "calls": [],
+  "calls": [
+    {
+      "method": "API",
+      "url": "GetIssueOrPR",
+      "status_code": 200,
+      "response": "{\"node_id\":\"PR_test890\",\"title\":\"Test Pull Request\",\"body\":\"Test PR body\",\"number\":456,\"state\":\"open\"}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ],
   "created": "2024-01-01T10:00:00Z",
   "updated": "2024-01-01T10:00:00Z"
 }

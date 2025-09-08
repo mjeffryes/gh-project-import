@@ -2,10 +2,10 @@
   "test_name": "GetUser",
   "calls": [
     {
-      "method": "GET",
-      "url": "user",
+      "method": "API",
+      "url": "GetUser",
       "status_code": 200,
-      "response": "{\"login\":\"test-user\",\"id\":12345,\"name\":\"Test User\"}",
+      "response": "\"test-user\"",
       "timestamp": "2024-01-01T10:00:00Z"
     }
   ],

@@ -1,5 +1,5 @@
-// Snapshot testing utilities for recording and replaying GitHub API interactions
-// Provides deterministic testing without actual API calls
+// Snapshot testing framework for GitHub API interactions
+// Records and replays GitHub API calls for deterministic testing
 package main
 
 import (
@@ -7,33 +7,44 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
-
-	"github.com/cli/go-gh/v2/pkg/api"
 )
 
-// SnapshotMode determines whether to record, replay, or bypass snapshots
+// GitHubClientInterface defines the interface for GitHub operations
+type GitHubClientInterface interface {
+	GetUser() (string, error)
+	FindProject(identifier string) (*Project, error)
+	GetProjectFields(projectID string) ([]ProjectField, error)
+	CreateDraftIssue(projectID, title, body string) (string, error)
+	CreateProjectItem(projectID, contentID string) (string, error)
+	GetIssueOrPR(url string) (map[string]interface{}, error)
+	SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error
+	CreateProject(ownerType, owner, title, description string) (*Project, error)
+	DeleteProject(projectID string) error
+}
+
+// SnapshotMode defines the operating mode for snapshot tests
 type SnapshotMode int
 
 const (
 	SnapshotModeReplay SnapshotMode = iota // Default: replay from snapshots
-	SnapshotModeRecord                     // Record new snapshots
-	SnapshotModeBypass                     // Bypass snapshots (make real API calls)
+	SnapshotModeRecord                     // Record new snapshots from real API calls
+	SnapshotModeBypass                     // Make real API calls without recording
 )
 
-// APICall represents a recorded API call and response
+// APICall represents a single API call in a snapshot
 type APICall struct {
-	Method      string            `json:"method"`
-	URL         string            `json:"url"`
-	Headers     map[string]string `json:"headers,omitempty"`
-	RequestBody string            `json:"request_body,omitempty"`
-	StatusCode  int               `json:"status_code"`
-	Response    string            `json:"response"`
-	Timestamp   time.Time         `json:"timestamp"`
+	Method      string    `json:"method"`
+	URL         string    `json:"url"`
+	RequestBody string    `json:"request_body,omitempty"`
+	StatusCode  int       `json:"status_code"`
+	Response    string    `json:"response"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
-// Snapshot represents a collection of API calls for a test scenario
+// Snapshot represents a complete test scenario with multiple API calls
 type Snapshot struct {
 	TestName string    `json:"test_name"`
 	Calls    []APICall `json:"calls"`
@@ -41,14 +52,14 @@ type Snapshot struct {
 	Updated  time.Time `json:"updated"`
 }
 
-// SnapshotGitHubClient wraps the GitHub API client with snapshot recording/replay
+// SnapshotGitHubClient wraps GitHubClient to provide snapshot functionality
 type SnapshotGitHubClient struct {
+	realClient   *GitHubClient
 	mode         SnapshotMode
 	snapshotDir  string
-	currentTest  string
+	testName     string
 	snapshot     *Snapshot
 	callIndex    int
-	realClient   api.RESTClient
 }
 
 // NewSnapshotGitHubClient creates a new snapshot-enabled GitHub client
@@ -56,99 +67,79 @@ func NewSnapshotGitHubClient(testName string) (*SnapshotGitHubClient, error) {
 	mode := getSnapshotMode()
 	snapshotDir := getSnapshotDir()
 	
-	// Create snapshots directory if it doesn't exist
+	// Create snapshot directory if it doesn't exist
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create snapshots directory: %w", err)
+		return nil, fmt.Errorf("failed to create snapshot directory: %w", err)
 	}
 	
-	var realClient api.RESTClient
+	client := &SnapshotGitHubClient{
+		mode:        mode,
+		snapshotDir: snapshotDir,
+		testName:    testName,
+		callIndex:   0,
+	}
+	
+	// For record and bypass modes, create a real GitHub client
 	if mode == SnapshotModeRecord || mode == SnapshotModeBypass {
-		client, err := api.DefaultRESTClient()
+		realClient, err := NewGitHubClient()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create real GitHub client: %w", err)
 		}
-		realClient = *client
-	}
-	
-	sgc := &SnapshotGitHubClient{
-		mode:        mode,
-		snapshotDir: snapshotDir,
-		currentTest: testName,
-		callIndex:   0,
-		realClient:  realClient,
+		client.realClient = realClient
 	}
 	
 	// Load or create snapshot
-	if err := sgc.loadOrCreateSnapshot(); err != nil {
-		return nil, fmt.Errorf("failed to load/create snapshot: %w", err)
+	if err := client.loadOrCreateSnapshot(); err != nil {
+		return nil, fmt.Errorf("failed to load snapshot: %w", err)
 	}
 	
-	return sgc, nil
+	return client, nil
 }
 
-// getSnapshotMode determines the snapshot mode from environment variables
-func getSnapshotMode() SnapshotMode {
-	switch strings.ToLower(os.Getenv("SNAPSHOT_MODE")) {
-	case "record":
-		return SnapshotModeRecord
-	case "bypass":
-		return SnapshotModeBypass
-	default:
-		return SnapshotModeReplay
+// Close saves the snapshot if in record mode
+func (sgc *SnapshotGitHubClient) Close() error {
+	if sgc.mode == SnapshotModeRecord {
+		return sgc.saveSnapshot()
 	}
-}
-
-// getSnapshotDir returns the directory for storing snapshots
-func getSnapshotDir() string {
-	if dir := os.Getenv("SNAPSHOT_DIR"); dir != "" {
-		return dir
-	}
-	return "testdata/snapshots"
-}
-
-// getSnapshotFile returns the file path for a snapshot
-func (sgc *SnapshotGitHubClient) getSnapshotFile() string {
-	// Replace spaces and special characters in test names for valid filenames
-	safeName := strings.ReplaceAll(sgc.currentTest, " ", "_")
-	safeName = strings.ReplaceAll(safeName, "/", "_")
-	filename := fmt.Sprintf("%s.json", safeName)
-	return filepath.Join(sgc.snapshotDir, filename)
+	return nil
 }
 
 // loadOrCreateSnapshot loads an existing snapshot or creates a new one
 func (sgc *SnapshotGitHubClient) loadOrCreateSnapshot() error {
-	snapshotFile := sgc.getSnapshotFile()
+	snapshotPath := sgc.getSnapshotPath()
 	
-	if sgc.mode == SnapshotModeReplay {
-		// Load existing snapshot
-		data, err := os.ReadFile(snapshotFile)
-		if err != nil {
-			return fmt.Errorf("failed to read snapshot file %s: %w (try running with SNAPSHOT_MODE=record to create it)", snapshotFile, err)
-		}
-		
-		sgc.snapshot = &Snapshot{}
-		if err := json.Unmarshal(data, sgc.snapshot); err != nil {
-			return fmt.Errorf("failed to parse snapshot file: %w", err)
-		}
-	} else {
-		// Create new snapshot for recording
+	if sgc.mode == SnapshotModeRecord {
+		// In record mode, create a new snapshot
 		sgc.snapshot = &Snapshot{
-			TestName: sgc.currentTest,
+			TestName: sgc.testName,
+			Calls:    []APICall{},
 			Created:  time.Now(),
 			Updated:  time.Now(),
-			Calls:    []APICall{},
 		}
+		return nil
 	}
 	
+	// In replay mode, load existing snapshot
+	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
+		return fmt.Errorf("snapshot file not found: %s (try running with SNAPSHOT_MODE=record to create it)", snapshotPath)
+	}
+	
+	data, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		return fmt.Errorf("failed to read snapshot file: %w", err)
+	}
+	
+	var snapshot Snapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return fmt.Errorf("failed to parse snapshot file: %w", err)
+	}
+	
+	sgc.snapshot = &snapshot
 	return nil
 }
 
 // saveSnapshot saves the current snapshot to disk
 func (sgc *SnapshotGitHubClient) saveSnapshot() error {
-	if sgc.mode != SnapshotModeRecord {
-		return nil // Only save when recording
-	}
-	
 	sgc.snapshot.Updated = time.Now()
 	
 	data, err := json.MarshalIndent(sgc.snapshot, "", "  ")
@@ -156,16 +147,24 @@ func (sgc *SnapshotGitHubClient) saveSnapshot() error {
 		return fmt.Errorf("failed to marshal snapshot: %w", err)
 	}
 	
-	snapshotFile := sgc.getSnapshotFile()
-	if err := os.WriteFile(snapshotFile, data, 0644); err != nil {
+	snapshotPath := sgc.getSnapshotPath()
+	if err := os.WriteFile(snapshotPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write snapshot file: %w", err)
 	}
 	
 	return nil
 }
 
-// recordCall records an API call and response
-func (sgc *SnapshotGitHubClient) recordCall(method, url string, requestBody string, statusCode int, response string) {
+// getSnapshotPath returns the file path for the snapshot
+func (sgc *SnapshotGitHubClient) getSnapshotPath() string {
+	// Create safe filename from test name
+	safeTestName := strings.ReplaceAll(sgc.testName, " ", "_")
+	safeTestName = regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(safeTestName, "_")
+	return filepath.Join(sgc.snapshotDir, safeTestName+".json")
+}
+
+// recordCall records an API call in record mode
+func (sgc *SnapshotGitHubClient) recordCall(method, url, requestBody string, statusCode int, response string) {
 	if sgc.mode != SnapshotModeRecord {
 		return
 	}
@@ -182,327 +181,259 @@ func (sgc *SnapshotGitHubClient) recordCall(method, url string, requestBody stri
 	sgc.snapshot.Calls = append(sgc.snapshot.Calls, call)
 }
 
-// replayCall replays a recorded API call
-func (sgc *SnapshotGitHubClient) replayCall(method, url string, requestBody string) (int, string, error) {
-	if sgc.mode != SnapshotModeReplay {
-		return 0, "", fmt.Errorf("not in replay mode")
-	}
-	
+// getNextCall returns the next expected call from the snapshot
+func (sgc *SnapshotGitHubClient) getNextCall() (*APICall, error) {
 	if sgc.callIndex >= len(sgc.snapshot.Calls) {
-		return 0, "", fmt.Errorf("no more recorded calls available (index %d >= %d calls)", sgc.callIndex, len(sgc.snapshot.Calls))
+		return nil, fmt.Errorf("no more recorded calls available (call %d)", sgc.callIndex+1)
 	}
 	
-	call := sgc.snapshot.Calls[sgc.callIndex]
+	call := &sgc.snapshot.Calls[sgc.callIndex]
 	sgc.callIndex++
-	
-	// Validate the call matches expectations
-	if call.Method != method {
-		return 0, "", fmt.Errorf("method mismatch: expected %s, got %s", call.Method, method)
-	}
-	
-	if call.URL != url {
-		return 0, "", fmt.Errorf("URL mismatch: expected %s, got %s", call.URL, url)
-	}
-	
-	// For GraphQL calls, we could add more sophisticated request body matching
-	// For now, we'll be lenient on exact request body matching
-	
-	return call.StatusCode, call.Response, nil
+	return call, nil
 }
 
-// Close finalizes the snapshot (saves if recording)
-func (sgc *SnapshotGitHubClient) Close() error {
-	return sgc.saveSnapshot()
-}
-
-// Implement the GitHubClient interface methods with snapshot support
-
-// GetUser returns the authenticated user information
-func (sgc *SnapshotGitHubClient) GetUser() (string, error) {
-	method := "GET"
-	url := "user"
-	
-	var statusCode int
-	var responseBody string
-	var err error
-	
+// executeWithSnapshot executes a function with snapshot recording/replay
+func (sgc *SnapshotGitHubClient) executeWithSnapshot(
+	operation string,
+	realFunc func() (interface{}, error),
+	parseResponse func(string) (interface{}, error),
+) (interface{}, error) {
 	switch sgc.mode {
-	case SnapshotModeReplay:
-		statusCode, responseBody, err = sgc.replayCall(method, url, "")
+	case SnapshotModeBypass:
+		// Direct call without recording
+		return realFunc()
+	
+	case SnapshotModeRecord:
+		// Execute real call and record the result
+		result, err := realFunc()
 		if err != nil {
-			return "", err
-		}
-	case SnapshotModeRecord, SnapshotModeBypass:
-		// Make real API call
-		response := struct {
-			Login string `json:"login"`
-		}{}
-		
-		err := sgc.realClient.Get(url, &response)
-		if err != nil {
-			return "", fmt.Errorf("failed to get user: %w", err)
+			// Record the error
+			sgc.recordCall("API", operation, "", 500, fmt.Sprintf(`{"error": "%s"}`, err.Error()))
+			return nil, err
 		}
 		
-		// For recording mode, capture the response
-		if sgc.mode == SnapshotModeRecord {
-			responseData, _ := json.Marshal(response)
-			responseBody = string(responseData)
-			statusCode = 200
-			sgc.recordCall(method, url, "", statusCode, responseBody)
-		}
-		
-		return response.Login, nil
-	}
+		// Record successful response
+		responseData, _ := json.Marshal(result)
+		sgc.recordCall("API", operation, "", 200, string(responseData))
+		return result, nil
 	
-	// Parse replayed response
-	if statusCode != 200 {
-		return "", fmt.Errorf("API error: status code %d", statusCode)
-	}
-	
-	var response struct {
-		Login string `json:"login"`
-	}
-	
-	if err := json.Unmarshal([]byte(responseBody), &response); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-	
-	return response.Login, nil
-}
-
-// makeGraphQLCall handles GraphQL API calls with snapshot support
-func (sgc *SnapshotGitHubClient) makeGraphQLCall(query string, variables map[string]interface{}) (map[string]interface{}, error) {
-	method := "POST"
-	url := "graphql"
-	
-	// Prepare request body
-	payload := map[string]interface{}{
-		"query": query,
-	}
-	if variables != nil {
-		payload["variables"] = variables
-	}
-	
-	requestData, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal GraphQL request: %w", err)
-	}
-	requestBody := string(requestData)
-	
-	var statusCode int
-	var responseBody string
-	
-	switch sgc.mode {
 	case SnapshotModeReplay:
-		statusCode, responseBody, err = sgc.replayCall(method, url, requestBody)
+		// Replay from snapshot
+		call, err := sgc.getNextCall()
 		if err != nil {
 			return nil, err
 		}
-	case SnapshotModeRecord, SnapshotModeBypass:
-		// Make real API call using the existing executeGraphQLMutation method logic
-		var response struct {
-			Data   map[string]interface{} `json:"data"`
-			Errors []struct {
-				Message string `json:"message"`
-			} `json:"errors"`
-		}
 		
-		err = sgc.realClient.Post("graphql", strings.NewReader(requestBody), &response)
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute GraphQL call: %w", err)
-		}
-		
-		// For recording mode, capture the response
-		if sgc.mode == SnapshotModeRecord {
-			responseData, _ := json.Marshal(response)
-			responseBody = string(responseData)
-			statusCode = 200
-			sgc.recordCall(method, url, requestBody, statusCode, responseBody)
-		}
-		
-		// Handle GraphQL errors
-		if len(response.Errors) > 0 {
-			errMsg := response.Errors[0].Message
-			if strings.Contains(errMsg, "rate limit") {
-				return nil, fmt.Errorf("GitHub API rate limit exceeded. Please wait and try again later")
+		if call.StatusCode != 200 {
+			var errorResp struct {
+				Error string `json:"error"`
 			}
-			if strings.Contains(errMsg, "not found") {
-				return nil, fmt.Errorf("resource not found or insufficient permissions: %s", errMsg)
+			if err := json.Unmarshal([]byte(call.Response), &errorResp); err == nil {
+				return nil, fmt.Errorf(errorResp.Error)
 			}
-			return nil, fmt.Errorf("GraphQL error: %s", errMsg)
+			return nil, fmt.Errorf("API error (status %d)", call.StatusCode)
 		}
 		
-		return response.Data, nil
-	}
+		return parseResponse(call.Response)
 	
-	// Parse replayed response
-	if statusCode != 200 {
-		return nil, fmt.Errorf("API error: status code %d", statusCode)
+	default:
+		return nil, fmt.Errorf("unknown snapshot mode: %v", sgc.mode)
 	}
-	
-	var response struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	
-	if err := json.Unmarshal([]byte(responseBody), &response); err != nil {
-		return nil, fmt.Errorf("failed to parse GraphQL response: %w", err)
-	}
-	
-	// Handle GraphQL errors
-	if len(response.Errors) > 0 {
-		errMsg := response.Errors[0].Message
-		if strings.Contains(errMsg, "rate limit") {
-			return nil, fmt.Errorf("GitHub API rate limit exceeded. Please wait and try again later")
-		}
-		if strings.Contains(errMsg, "not found") {
-			return nil, fmt.Errorf("resource not found or insufficient permissions: %s", errMsg)
-		}
-		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
-	}
-	
-	return response.Data, nil
 }
 
-// FindProject finds a project by identifier with snapshot support
+// GetUser implements GitHubClientInterface
+func (sgc *SnapshotGitHubClient) GetUser() (string, error) {
+	result, err := sgc.executeWithSnapshot(
+		"GetUser",
+		func() (interface{}, error) {
+			return sgc.realClient.GetUser()
+		},
+		func(response string) (interface{}, error) {
+			return response, nil
+		},
+	)
+	
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
+}
+
+// FindProject implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) FindProject(identifier string) (*Project, error) {
-	// Implementation similar to the original, but using makeGraphQLCall
-	// This is a simplified version - full implementation would include all the logic from github.go
-	
-	query := `
-		query {
-			viewer {
-				login
+	result, err := sgc.executeWithSnapshot(
+		"FindProject",
+		func() (interface{}, error) {
+			return sgc.realClient.FindProject(identifier)
+		},
+		func(response string) (interface{}, error) {
+			var project Project
+			if err := json.Unmarshal([]byte(response), &project); err != nil {
+				return nil, err
 			}
-		}
-	`
+			return &project, nil
+		},
+	)
 	
-	_, err := sgc.makeGraphQLCall(query, nil)
 	if err != nil {
 		return nil, err
 	}
-	
-	// For now, return a mock project for demonstration
-	// Full implementation would include proper project discovery logic
-	return &Project{
-		ID:     "PVT_test123",
-		Number: 1,
-		Title:  "Test Project",
-		URL:    "https://github.com/test/project/projects/1",
-	}, nil
+	return result.(*Project), nil
 }
 
-// Additional methods would be implemented similarly...
-// For brevity, I'll implement the core pattern and a few key methods
-
-// GetProjectFields retrieves the field schema for a project with snapshot support
+// GetProjectFields implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) GetProjectFields(projectID string) ([]ProjectField, error) {
-	query := fmt.Sprintf(`
-		query {
-			node(id: "%s") {
-				... on ProjectV2 {
-					fields(first: 100) {
-						nodes {
-							... on ProjectV2Field {
-								id
-								name
-								dataType
-							}
-							... on ProjectV2SingleSelectField {
-								id
-								name
-								dataType
-								options {
-									id
-									name
-								}
-							}
-						}
-					}
-				}
+	result, err := sgc.executeWithSnapshot(
+		"GetProjectFields",
+		func() (interface{}, error) {
+			return sgc.realClient.GetProjectFields(projectID)
+		},
+		func(response string) (interface{}, error) {
+			var fields []ProjectField
+			if err := json.Unmarshal([]byte(response), &fields); err != nil {
+				return nil, err
 			}
-		}
-	`, projectID)
+			return fields, nil
+		},
+	)
 	
-	_, err := sgc.makeGraphQLCall(query, nil)
 	if err != nil {
 		return nil, err
 	}
-	
-	// Parse the response - simplified for demonstration
-	// Full implementation would include proper field parsing
-	fields := []ProjectField{
-		{ID: "field1", Name: "Status", Type: "SINGLE_SELECT", Options: []ProjectFieldOption{
-			{ID: "opt1", Name: "Todo"},
-			{ID: "opt2", Name: "In Progress"},
-			{ID: "opt3", Name: "Done"},
-		}},
-		{ID: "field2", Name: "Priority", Type: "SINGLE_SELECT", Options: []ProjectFieldOption{
-			{ID: "opt4", Name: "Low"},
-			{ID: "opt5", Name: "Medium"},
-			{ID: "opt6", Name: "High"},
-		}},
-		{ID: "field3", Name: "Estimate", Type: "NUMBER"},
-	}
-	
-	return fields, nil
+	return result.([]ProjectField), nil
 }
 
-// CreateDraftIssue creates a draft issue with snapshot support
+// CreateDraftIssue implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) CreateDraftIssue(projectID, title, body string) (string, error) {
-	mutation := `
-		mutation($projectId: ID!, $title: String!, $body: String) {
-			addProjectV2DraftIssue(input: {projectId: $projectId, title: $title, body: $body}) {
-				projectItem {
-					id
-				}
-			}
-		}
-	`
+	result, err := sgc.executeWithSnapshot(
+		"CreateDraftIssue",
+		func() (interface{}, error) {
+			return sgc.realClient.CreateDraftIssue(projectID, title, body)
+		},
+		func(response string) (interface{}, error) {
+			return response, nil
+		},
+	)
 	
-	variables := map[string]interface{}{
-		"projectId": projectID,
-		"title":     title,
-		"body":      body,
-	}
-	
-	_, err := sgc.makeGraphQLCall(mutation, variables)
 	if err != nil {
-		return "", fmt.Errorf("failed to create draft issue: %w", err)
+		return "", err
 	}
-	
-	// Parse response - simplified for demonstration
-	return "ITEM_test123", nil
+	return result.(string), nil
 }
 
-// Stub implementations for interface compatibility
+// CreateProjectItem implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) CreateProjectItem(projectID, contentID string) (string, error) {
-	return "ITEM_test456", nil
+	result, err := sgc.executeWithSnapshot(
+		"CreateProjectItem",
+		func() (interface{}, error) {
+			return sgc.realClient.CreateProjectItem(projectID, contentID)
+		},
+		func(response string) (interface{}, error) {
+			return response, nil
+		},
+	)
+	
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
 }
 
+// GetIssueOrPR implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) GetIssueOrPR(url string) (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"node_id": "ISSUE_test789",
-		"title":   "Test Issue",
-		"body":    "Test issue body",
-	}, nil
+	result, err := sgc.executeWithSnapshot(
+		"GetIssueOrPR",
+		func() (interface{}, error) {
+			return sgc.realClient.GetIssueOrPR(url)
+		},
+		func(response string) (interface{}, error) {
+			var content map[string]interface{}
+			if err := json.Unmarshal([]byte(response), &content); err != nil {
+				return nil, err
+			}
+			return content, nil
+		},
+	)
+	
+	if err != nil {
+		return nil, err
+	}
+	return result.(map[string]interface{}), nil
 }
 
+// SetProjectItemFieldValue implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error {
-	return nil
+	_, err := sgc.executeWithSnapshot(
+		"SetProjectItemFieldValue",
+		func() (interface{}, error) {
+			err := sgc.realClient.SetProjectItemFieldValue(projectID, itemID, fieldID, value)
+			return "success", err
+		},
+		func(response string) (interface{}, error) {
+			return "success", nil
+		},
+	)
+	
+	return err
 }
 
+// CreateProject implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) CreateProject(ownerType, owner, title, description string) (*Project, error) {
-	return &Project{
-		ID:     "PVT_test_new_123",
-		Number: 999,
-		Title:  title,
-		URL:    "https://github.com/" + owner + "/projects/999",
-	}, nil
+	result, err := sgc.executeWithSnapshot(
+		"CreateProject",
+		func() (interface{}, error) {
+			return sgc.realClient.CreateProject(ownerType, owner, title, description)
+		},
+		func(response string) (interface{}, error) {
+			var project Project
+			if err := json.Unmarshal([]byte(response), &project); err != nil {
+				return nil, err
+			}
+			return &project, nil
+		},
+	)
+	
+	if err != nil {
+		return nil, err
+	}
+	return result.(*Project), nil
 }
 
+// DeleteProject implements GitHubClientInterface
 func (sgc *SnapshotGitHubClient) DeleteProject(projectID string) error {
-	return nil
+	_, err := sgc.executeWithSnapshot(
+		"DeleteProject",
+		func() (interface{}, error) {
+			err := sgc.realClient.DeleteProject(projectID)
+			return "success", err
+		},
+		func(response string) (interface{}, error) {
+			return "success", nil
+		},
+	)
+	
+	return err
+}
+
+// Helper functions
+
+// getSnapshotMode returns the current snapshot mode from environment
+func getSnapshotMode() SnapshotMode {
+	mode := strings.ToLower(os.Getenv("SNAPSHOT_MODE"))
+	switch mode {
+	case "record":
+		return SnapshotModeRecord
+	case "bypass":
+		return SnapshotModeBypass
+	default:
+		return SnapshotModeReplay
+	}
+}
+
+// getSnapshotDir returns the snapshot directory from environment or default
+func getSnapshotDir() string {
+	if dir := os.Getenv("SNAPSHOT_DIR"); dir != "" {
+		return dir
+	}
+	return "testdata/snapshots"
 }

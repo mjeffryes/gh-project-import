@@ -2,11 +2,10 @@
   "test_name": "FindProject_valid_project_identifier",
   "calls": [
     {
-      "method": "POST",
-      "url": "graphql",
-      "request_body": "{\"query\":\"\\n\\t\\tquery {\\n\\t\\t\\tviewer {\\n\\t\\t\\t\\tlogin\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\"}",
+      "method": "API",
+      "url": "FindProject",
       "status_code": 200,
-      "response": "{\"data\":{\"viewer\":{\"login\":\"test-user\"}}}",
+      "response": "{\"id\":\"PVT_test123\",\"number\":1,\"title\":\"Test Project\",\"url\":\"https://github.com/test/projects/1\"}",
       "timestamp": "2024-01-01T10:00:00Z"
     }
   ],
