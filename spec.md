@@ -8,16 +8,16 @@ This tool is designed to help teams automate bulk additions, synchronize, or mig
 ## Core Functionality
 
 ### Primary Use Cases
-- [ ] **Bulk Additions**: Add multiple items to a project at once
-- [ ] **Project Migration**: Move all items from an old project (eg. from an export) to a new project structure
+- [x] **Bulk Additions**: Add multiple items to a project at once
+- [x] **Project Migration**: Move all items from an old project (eg. from an export) to a new project structure
 
 ### Key Features
-- [ ] Bulk import multiple items (all item types: PR, issue, draft)
-- [ ] Set field values for the newly added items
-- [ ] Validate input against the field types and allowed values
-- [ ] Support for all GitHub Projects v2 field types (text, number, date, single-select, iteration, etc.)
-- [ ] Dry-run mode to preview changes before execution
-- [ ] Detailed logging and progress reporting
+- [x] Bulk import multiple items (all item types: PR, issue, draft)
+- [x] Set field values for the newly added items
+- [x] Validate input against the field types and allowed values
+- [x] Support for all GitHub Projects v2 field types (text, number, date, single-select, iteration, etc.)
+- [x] Dry-run mode to preview changes before execution
+- [x] Detailed logging and progress reporting
 
 ## Command-Line Interface
 
@@ -32,7 +32,7 @@ gh project-import --source "import_file.csv" --project "owner/project"
 ```
 
 ### Basic Usage Commands
-- [ ] Add items from json source file to destination project
+- [x] Add items from json source file to destination project
     Example input
     ``` json
     [
@@ -76,7 +76,7 @@ gh project-import --source "import_file.csv" --project "owner/project"
         },
     ]
     ```
-- [ ] Add items from csv source file to destination project
+- [x] Add items from csv source file to destination project
     Example input
     ``` csv
     Repository,Title,URL,Assignees,Estimate (Days),Spent (Days),Theme,Status,notes,M
@@ -87,32 +87,32 @@ gh project-import --source "import_file.csv" --project "owner/project"
     ```
 
 ### Required Parameters
-- [ ] `--source, -s`: Source file with items to import
-- [ ] `--project, -p`: Destination project identifier (format: `owner/project-name` or `project-number`)
+- [x] `--source, -s`: Source file with items to import
+- [x] `--project, -p`: Destination project identifier (format: `owner/project-name` or `project-number`)
 
 ### Optional Parameters
-- [ ] `--dry-run`: Preview what would be copied without making changes
-- [ ] `--verbose, -v`: Enable verbose logging
-- [ ] `--quiet, -q`: Suppress non-error output
+- [x] `--dry-run`: Preview what would be copied without making changes
+- [x] `--verbose, -v`: Enable verbose logging
+- [x] `--quiet, -q`: Suppress non-error output
 
 ### Project Identifier Formats
-- [ ] **Organization projects**: `org/project-name` (e.g., `github/Q4 Planning`)
-- [ ] **User projects**: `username/project-name` (e.g., `octocat/Personal Tasks`)
-- [ ] **Numbered format**: `owner/123` (e.g., `octocat/123`)
+- [x] **Organization projects**: `org/project-name` (e.g., `github/Q4 Planning`)
+- [x] **User projects**: `username/project-name` (e.g., `octocat/Personal Tasks`)
+- [x] **Numbered format**: `owner/123` (e.g., `octocat/123`)
 
 ## Internal structure
 
-- [ ] main.go - parsing user input and core import logic
-    - [ ] parse CLI flags and arguments
-    - [ ] discover fields on destination project
-    - [ ] validate fields and values in the source file match the field schema of the destination project
-    - [ ] add items from the file to the project (including setting field values)
-- [ ] github.go - library functions that wrap API calls to GitHub
-    - [ ] **Project Discovery**: Query projects by name or number
-    - [ ] **Field Schema**: Retrieve field definitions and options
-    - [ ] **Item Creation**: Add items to destination project
-    - [ ] **Field Updates**: Set field values on copied items
-    - [ ] **Create/Delete Project**: Create or delete a project (only used in e2e test)
+- [x] main.go - parsing user input and core import logic
+    - [x] parse CLI flags and arguments
+    - [x] discover fields on destination project
+    - [x] validate fields and values in the source file match the field schema of the destination project
+    - [x] add items from the file to the project (including setting field values)
+- [x] github.go - library functions that wrap API calls to GitHub
+    - [x] **Project Discovery**: Query projects by name or number
+    - [x] **Field Schema**: Retrieve field definitions and options
+    - [x] **Item Creation**: Add items to destination project
+    - [x] **Field Updates**: Set field values on copied items
+    - [x] **Create/Delete Project**: Create or delete a project (only used in e2e test)
 
 IMPORTANT: All interactions with the github API should be mediated via the functions in github.go
 
@@ -134,12 +134,12 @@ Optional
 
 ### Field Type Compatibility Matrix
 Input validation for destination project field types
-- [ ] Text: input value converted to a string
-- [ ] Number: input must be a number or a string containing only a number
-- [ ] Date: input must be in ISO Date format
-- [ ] Single Select: input must be the name of one of the single-select values
-- [ ] User: input must be user login as text
-- [ ] Iteration: input must be iteration name as text
+- [x] Text: input value converted to a string
+- [x] Number: input must be a number or a string containing only a number
+- [x] Date: input must be in ISO Date format
+- [x] Single Select: input must be the name of one of the single-select values
+- [x] User: input must be user login as text
+- [x] Iteration: input must be iteration name as text
 
 ## Internal structure
 
@@ -236,9 +236,9 @@ Example:
 
 ### Testing Strategy
 - [x] **Unit tests**:
-    - [ ] field mapping logic
-    - [ ] interpretation of the user inputs
-    - [ ] Error handling
+    - [x] field mapping logic
+    - [x] interpretation of the user inputs
+    - [x] Error handling
 - [ ] **Snapshot tests**:
     - [ ] Record/replay github API interactions for all the functions in github.go
     - [ ] Default should be to replay from the snapshot.
@@ -335,19 +335,19 @@ Example:
 - [ ] **Progress tracking**: Show progress for large copy operations
 
 ### Testing Strategy
-- [ ] **Unit tests**:
-    - [ ] Interpretation of the user inputs/flags
-    - [ ] Parsing of json format
-    - [ ] Parsing of csv format
-    - [ ] Error handling
+- [x] **Unit tests**:
+    - [x] Interpretation of the user inputs/flags
+    - [x] Parsing of json format
+    - [x] Parsing of csv format
+    - [x] Error handling
 - [ ] **Snapshot tests**:
     - [ ] Record/replay github API interactions for all the functions in github.go
     - [ ] Default should be to replay from the snapshot.
     - [ ] Make real API calls and record a new snapshot when an environment variable is set
-- [ ] **Integration tests**: Test with real GitHub projects (using test repositories)
-    - [ ] Create a new destination project in this repository
-    - [ ] Test importing items from a source file to the destination
-    - [ ] Cleanup the test project when done
+- [x] **Integration tests**: Test with real GitHub projects (using test repositories)
+    - [x] Create a new destination project in this repository
+    - [x] Test importing items from a source file to the destination
+    - [x] Cleanup the test project when done
 
 ## Security Considerations
-- [ ] **Token handling**: Secure handling of GitHub authentication tokens
+- [x] **Token handling**: Secure handling of GitHub authentication tokens
