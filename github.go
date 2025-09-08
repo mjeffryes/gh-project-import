@@ -15,11 +15,10 @@ import (
 
 // Project represents a GitHub Projects v2 project
 type Project struct {
-	ID          string `json:"id"`
-	Number      int    `json:"number"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
+	ID     string `json:"id"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
 }
 
 // ProjectField represents a field in a GitHub project
@@ -100,7 +99,6 @@ func (gc *GitHubClient) findProjectByNumber(number int) (*Project, error) {
 					id
 					number
 					title
-					description
 					url
 				}
 			}
@@ -117,7 +115,6 @@ func (gc *GitHubClient) findProjectByNumber(number int) (*Project, error) {
 			ID:          getString(nodeData, "id"),
 			Number:      getInt(nodeData, "number"),
 			Title:       getString(nodeData, "title"),
-			Description: getString(nodeData, "description"),
 			URL:         getString(nodeData, "url"),
 		}, nil
 	})
@@ -141,7 +138,6 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 							id
 							number
 							title
-							description
 							url
 						}
 					}
@@ -157,7 +153,6 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 							id
 							number
 							title
-							description
 							url
 						}
 					}
@@ -179,7 +174,6 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 									ID:          getString(nodeMap, "id"),
 									Number:      getInt(nodeMap, "number"),
 									Title:       getString(nodeMap, "title"),
-									Description: getString(nodeMap, "description"),
 									URL:         getString(nodeMap, "url"),
 								})
 							}
@@ -197,7 +191,6 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 									ID:          getString(nodeMap, "id"),
 									Number:      getInt(nodeMap, "number"),
 									Title:       getString(nodeMap, "title"),
-									Description: getString(nodeMap, "description"),
 									URL:         getString(nodeMap, "url"),
 								})
 							}

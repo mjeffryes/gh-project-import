@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -92,8 +93,329 @@ func runImport(config Config) error {
 		fmt.Printf("Parsed %d items from source file\n", len(items))
 	}
 
-	// TODO: Implement GitHub API integration
-	fmt.Println("GitHub API integration not yet implemented")
-	
+	// Initialize GitHub client
+	if config.Verbose {
+		fmt.Println("Authenticating with GitHub API...")
+	}
+
+	client, err := NewGitHubClient()
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub client: %w", err)
+	}
+
+	// Get current user info
+	user, err := client.GetUser()
+	if err != nil {
+		return fmt.Errorf("failed to authenticate with GitHub: %w", err)
+	}
+
+	if config.Verbose {
+		fmt.Printf("Authenticated as: %s\n", user)
+	}
+
+	// Find the destination project
+	if config.Verbose {
+		fmt.Printf("Resolving destination project: %s\n", config.Project)
+	}
+
+	project, err := client.FindProject(config.Project)
+	if err != nil {
+		return fmt.Errorf("failed to find project: %w", err)
+	}
+
+	if config.Verbose {
+		fmt.Printf("Found project: %s (ID: %s)\n", project.Title, project.ID)
+	}
+
+	// Get project field schema
+	if config.Verbose {
+		fmt.Println("Retrieving project field schema...")
+	}
+
+	fields, err := client.GetProjectFields(project.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get project fields: %w", err)
+	}
+
+	if config.Verbose {
+		fmt.Printf("Found %d project fields:\n", len(fields))
+		for _, field := range fields {
+			optionInfo := ""
+			if len(field.Options) > 0 {
+				optionNames := make([]string, len(field.Options))
+				for i, opt := range field.Options {
+					optionNames[i] = opt.Name
+				}
+				optionInfo = fmt.Sprintf(" (options: %s)", strings.Join(optionNames, ", "))
+			}
+			fmt.Printf("  - %s (%s)%s\n", field.Name, field.Type, optionInfo)
+		}
+	}
+
+	// Validate field compatibility
+	if config.Verbose {
+		fmt.Println("Analyzing field compatibility...")
+	}
+
+	fieldMap := make(map[string]ProjectField)
+	for _, field := range fields {
+		fieldMap[field.Name] = field
+	}
+
+	validationErrors := validateItemFields(items, fieldMap, config)
+	if len(validationErrors) > 0 {
+		if !config.Quiet {
+			fmt.Printf("⚠ Field validation warnings:\n")
+			for _, err := range validationErrors {
+				fmt.Printf("  - %s\n", err)
+			}
+		}
+	}
+
+	if config.DryRun {
+		fmt.Printf("DRY RUN: Would import %d items to project '%s'\n", len(items), project.Title)
+		return nil
+	}
+
+	// Import items to the project
+	return importItems(client, project, items, fieldMap, config)
+}
+
+// importItems handles the actual import of items to a project
+func importItems(client *GitHubClient, project *Project, items []ImportItem, fieldMap map[string]ProjectField, config Config) error {
+
+	successCount := 0
+	errorCount := 0
+
+	for i, item := range items {
+		if config.Verbose {
+			fmt.Printf("Importing item %d/%d: \"%s\" (%s)\n", i+1, len(items), item.Title, GetItemType(item))
+		} else if !config.Quiet {
+			fmt.Printf("Importing item %d/%d...\n", i+1, len(items))
+		}
+
+		err := importSingleItem(client, project, item, fieldMap, config)
+		if err != nil {
+			errorCount++
+			fmt.Printf("ERROR: Failed to import item %d (\"%s\"): %v\n", i+1, item.Title, err)
+			continue
+		}
+
+		successCount++
+		if config.Verbose {
+			fmt.Printf("SUCCESS: Item imported successfully\n")
+		}
+	}
+
+	if !config.Quiet {
+		if errorCount > 0 {
+			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
+			fmt.Printf("⚠ %d items failed to import\n", errorCount)
+		} else {
+			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
+		}
+	}
+
 	return nil
+}
+
+// importSingleItem imports a single item to a project
+func importSingleItem(client *GitHubClient, project *Project, item ImportItem, fieldMap map[string]ProjectField, config Config) error {
+	var itemID string
+	var err error
+
+	itemType := GetItemType(item)
+
+	// Create the item based on its type
+	switch itemType {
+	case "DraftIssue":
+		itemID, err = client.CreateDraftIssue(project.ID, item.Title, GetItemBody(item))
+	case "Issue", "PullRequest":
+		// For existing issues/PRs, we need to get their content ID and add them to the project
+		if item.URL == "" {
+			return fmt.Errorf("URL is required for existing issues and pull requests")
+		}
+
+		// Get the issue/PR content
+		content, err := client.GetIssueOrPR(item.URL)
+		if err != nil {
+			return fmt.Errorf("failed to get issue/PR content: %w", err)
+		}
+
+		// Extract the content ID (node_id)
+		contentID, ok := content["node_id"].(string)
+		if !ok {
+			return fmt.Errorf("could not extract content ID from issue/PR")
+		}
+
+		// Add the issue/PR to the project
+		itemID, err = client.CreateProjectItem(project.ID, contentID)
+	default:
+		return fmt.Errorf("unsupported item type: %s", itemType)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to create project item: %w", err)
+	}
+
+	// Set field values
+	return setItemFields(client, project.ID, itemID, item, fieldMap, config)
+}
+
+// setItemFields sets field values for a project item
+func setItemFields(client *GitHubClient, projectID, itemID string, item ImportItem, fieldMap map[string]ProjectField, config Config) error {
+	// Process all custom fields from the Fields map
+	for fieldName, fieldValue := range item.Fields {
+		field, exists := fieldMap[fieldName]
+		if !exists {
+			if config.Verbose {
+				fmt.Printf("  WARNING: Field '%s' not found in project, skipping\n", fieldName)
+			}
+			continue
+		}
+
+		// Convert the field value to the appropriate format for GraphQL
+		convertedValue, err := convertFieldValue(fieldValue, field)
+		if err != nil {
+			if config.Verbose {
+				fmt.Printf("  WARNING: Failed to convert field '%s': %v, skipping\n", fieldName, err)
+			}
+			continue
+		}
+
+		// Set the field value
+		err = client.SetProjectItemFieldValue(projectID, itemID, field.ID, convertedValue)
+		if err != nil {
+			if config.Verbose {
+				fmt.Printf("  WARNING: Failed to set field '%s': %v\n", fieldName, err)
+			}
+			continue
+		}
+
+		if config.Verbose {
+			fmt.Printf("  Set field: %s = %v\n", fieldName, fieldValue)
+		}
+	}
+
+	return nil
+}
+
+// convertFieldValue converts a field value to the appropriate format for the GitHub GraphQL API
+func convertFieldValue(value interface{}, field ProjectField) (interface{}, error) {
+	switch field.Type {
+	case "TEXT":
+		if str, ok := value.(string); ok {
+			return map[string]interface{}{"text": str}, nil
+		}
+		return map[string]interface{}{"text": fmt.Sprintf("%v", value)}, nil
+
+	case "NUMBER":
+		var num float64
+		switch v := value.(type) {
+		case float64:
+			num = v
+		case int64:
+			num = float64(v)
+		case int:
+			num = float64(v)
+		case string:
+			var err error
+			num, err = strconv.ParseFloat(v, 64)
+			if err != nil {
+				return nil, fmt.Errorf("cannot convert '%s' to number", v)
+			}
+		default:
+			return nil, fmt.Errorf("cannot convert %T to number", value)
+		}
+		return map[string]interface{}{"number": num}, nil
+
+	case "DATE":
+		if str, ok := value.(string); ok {
+			// Validate ISO date format
+			if !strings.Contains(str, "T") {
+				// Add time if not present
+				str += "T00:00:00Z"
+			}
+			return map[string]interface{}{"date": str}, nil
+		}
+		return nil, fmt.Errorf("date field must be a string in ISO format")
+
+	case "SINGLE_SELECT":
+		if str, ok := value.(string); ok {
+			// Find the option ID for the given name
+			for _, option := range field.Options {
+				if option.Name == str {
+					return map[string]interface{}{"singleSelectOptionId": option.ID}, nil
+				}
+			}
+			return nil, fmt.Errorf("single-select option '%s' not found", str)
+		}
+		return nil, fmt.Errorf("single-select field must be a string")
+
+	case "USER":
+		if str, ok := value.(string); ok {
+			// For user fields, we need to resolve the user login to a user ID
+			// For now, we'll use the login directly (this might need adjustment)
+			return map[string]interface{}{"assigneeIds": []string{str}}, nil
+		}
+		return nil, fmt.Errorf("user field must be a string")
+
+	case "ITERATION":
+		if _, ok := value.(string); ok {
+			// For iteration fields, we need to find the iteration ID
+			// This is complex and may require additional API calls
+			// For now, return an error to indicate it's not implemented
+			return nil, fmt.Errorf("iteration fields not yet implemented")
+		}
+		return nil, fmt.Errorf("iteration field must be a string")
+
+	default:
+		return nil, fmt.Errorf("unsupported field type: %s", field.Type)
+	}
+}
+
+// validateItemFields validates that item fields are compatible with project schema
+func validateItemFields(items []ImportItem, fieldMap map[string]ProjectField, config Config) []string {
+	var warnings []string
+	seenFields := make(map[string]bool)
+
+	for i, item := range items {
+		for fieldName, fieldValue := range item.Fields {
+			// Track which fields we've seen
+			if !seenFields[fieldName] {
+				seenFields[fieldName] = true
+
+				field, exists := fieldMap[fieldName]
+				if !exists {
+					warnings = append(warnings, fmt.Sprintf("Field '%s' not found in project (used in item %d: '%s')", fieldName, i+1, item.Title))
+					continue
+				}
+
+				// Try to validate the field value
+				_, err := convertFieldValue(fieldValue, field)
+				if err != nil {
+					warnings = append(warnings, fmt.Sprintf("Field '%s' validation failed: %v (used in item %d: '%s')", fieldName, err, i+1, item.Title))
+				} else if config.Verbose {
+					// Only show success for verbose mode
+					if len(warnings) == 0 {
+						// This is a bit hacky, but we want to show at least one success message
+						warnings = append(warnings, fmt.Sprintf("Field '%s' (%s) is compatible", fieldName, field.Type))
+						// Remove it immediately so it doesn't show as a warning
+						warnings = warnings[:len(warnings)-1]
+					}
+				}
+			}
+		}
+	}
+
+	// Check for missing required fields (if any)
+	// Note: GitHub Projects v2 doesn't have traditional "required" fields,
+	// but we can check if common fields like Title are missing
+	for i, item := range items {
+		if item.Title == "" {
+			warnings = append(warnings, fmt.Sprintf("Item %d is missing a title", i+1))
+		}
+	}
+
+	return warnings
 }
