@@ -228,6 +228,9 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 		}
 	}
 
+	// Calculate field statistics
+	fieldStats := calculateFieldStatistics(items, fieldMap)
+	
 	if !config.Quiet {
 		if errorCount > 0 {
 			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
@@ -238,6 +241,17 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 		} else {
 			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
 		}
+		
+		// Field mapping statistics
+		if fieldStats.preservedFields > 0 {
+			fmt.Printf("✓ Preserved %d field mappings\n", fieldStats.preservedFields)
+		}
+		if fieldStats.skippedFields > 0 {
+			fmt.Printf("⚠ Skipped %d fields due to compatibility issues\n", fieldStats.skippedFields)
+			for _, fieldName := range fieldStats.skippedFieldNames {
+				fmt.Printf("   - \"%s\" field not found in destination\n", fieldName)
+			}
+		}
 	}
 
 	// Return an error if there were failures and no successes
@@ -246,6 +260,41 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 	}
 
 	return nil
+}
+
+// FieldStatistics holds statistics about field mappings
+type FieldStatistics struct {
+	preservedFields    int
+	skippedFields      int
+	skippedFieldNames  []string
+}
+
+// calculateFieldStatistics analyzes field usage and compatibility
+func calculateFieldStatistics(items []ImportItem, fieldMap map[string]ProjectField) FieldStatistics {
+	uniqueFields := make(map[string]bool)
+	skippedFields := make(map[string]bool)
+	
+	// Analyze all fields used in items
+	for _, item := range items {
+		for fieldName := range item.Fields {
+			uniqueFields[fieldName] = true
+			if _, exists := fieldMap[fieldName]; !exists {
+				skippedFields[fieldName] = true
+			}
+		}
+	}
+	
+	// Convert skipped fields map to slice for reporting
+	var skippedFieldNames []string
+	for fieldName := range skippedFields {
+		skippedFieldNames = append(skippedFieldNames, fieldName)
+	}
+	
+	return FieldStatistics{
+		preservedFields:   len(uniqueFields) - len(skippedFields),
+		skippedFields:     len(skippedFields),
+		skippedFieldNames: skippedFieldNames,
+	}
 }
 
 // importSingleItem imports a single item to a project
