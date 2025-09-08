@@ -469,7 +469,15 @@ func (gc *GitHubClient) executeGraphQLQuery(query string, variables map[string]i
 	}
 	
 	if len(response.Errors) > 0 {
-		return nil, fmt.Errorf("GraphQL error: %s", response.Errors[0].Message)
+		errMsg := response.Errors[0].Message
+		// Provide more helpful error messages for common issues
+		if strings.Contains(errMsg, "rate limit") {
+			return nil, fmt.Errorf("GitHub API rate limit exceeded. Please wait and try again later")
+		}
+		if strings.Contains(errMsg, "not found") {
+			return nil, fmt.Errorf("resource not found or insufficient permissions: %s", errMsg)
+		}
+		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
 	}
 	
 	return processor(response.Data)
@@ -500,7 +508,18 @@ func (gc *GitHubClient) executeGraphQLMutation(mutation string, variables map[st
 	}
 	
 	if len(response.Errors) > 0 {
-		return nil, fmt.Errorf("GraphQL error: %s", response.Errors[0].Message)
+		errMsg := response.Errors[0].Message
+		// Provide more helpful error messages for common issues
+		if strings.Contains(errMsg, "rate limit") {
+			return nil, fmt.Errorf("GitHub API rate limit exceeded. Please wait and try again later")
+		}
+		if strings.Contains(errMsg, "not found") {
+			return nil, fmt.Errorf("resource not found or insufficient permissions: %s", errMsg)
+		}
+		if strings.Contains(errMsg, "already exists") {
+			return nil, fmt.Errorf("item already exists in project: %s", errMsg)
+		}
+		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
 	}
 	
 	return response.Data, nil

@@ -63,6 +63,13 @@ func runImport(config Config) error {
 		}
 	}
 
+	// Validate source file exists and is readable
+	if _, err := os.Stat(config.Source); os.IsNotExist(err) {
+		return fmt.Errorf("source file does not exist: %s", config.Source)
+	} else if err != nil {
+		return fmt.Errorf("cannot access source file %s: %w", config.Source, err)
+	}
+
 	// Parse the source file
 	var items []ImportItem
 	var err error
@@ -76,7 +83,14 @@ func runImport(config Config) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to parse source file: %w", err)
+		// Provide more specific error context
+		if strings.Contains(err.Error(), "permission denied") {
+			return fmt.Errorf("permission denied reading file %s. Check file permissions", config.Source)
+		}
+		if strings.Contains(err.Error(), "invalid character") {
+			return fmt.Errorf("invalid JSON format in file %s: %w", config.Source, err)
+		}
+		return fmt.Errorf("failed to parse source file %s: %w", config.Source, err)
 	}
 
 	// Validate items
@@ -197,7 +211,14 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 		err := importSingleItem(client, project, item, fieldMap, config)
 		if err != nil {
 			errorCount++
-			fmt.Printf("ERROR: Failed to import item %d (\"%s\"): %v\n", i+1, item.Title, err)
+			// Provide more specific error context
+			itemType := GetItemType(item)
+			if config.Verbose {
+				fmt.Printf("ERROR: Failed to import item %d (\"%s\", type: %s)\n", i+1, item.Title, itemType)
+				fmt.Printf("       %v\n", err)
+			} else {
+				fmt.Printf("ERROR: Failed to import item %d (\"%s\"): %v\n", i+1, item.Title, err)
+			}
 			continue
 		}
 
@@ -211,9 +232,17 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 		if errorCount > 0 {
 			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
 			fmt.Printf("⚠ %d items failed to import\n", errorCount)
+			if !config.Verbose {
+				fmt.Printf("Run with --verbose for detailed error information\n")
+			}
 		} else {
 			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
 		}
+	}
+
+	// Return an error if there were failures and no successes
+	if successCount == 0 && errorCount > 0 {
+		return fmt.Errorf("failed to import any items")
 	}
 
 	return nil
