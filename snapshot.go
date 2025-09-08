@@ -493,3 +493,16 @@ func (sgc *SnapshotGitHubClient) GetIssueOrPR(url string) (map[string]interface{
 func (sgc *SnapshotGitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error {
 	return nil
 }
+
+func (sgc *SnapshotGitHubClient) CreateProject(ownerType, owner, title, description string) (*Project, error) {
+	return &Project{
+		ID:     "PVT_test_new_123",
+		Number: 999,
+		Title:  title,
+		URL:    "https://github.com/" + owner + "/projects/999",
+	}, nil
+}
+
+func (sgc *SnapshotGitHubClient) DeleteProject(projectID string) error {
+	return nil
+}

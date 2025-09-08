@@ -543,3 +543,171 @@ func getInt(m map[string]interface{}, key string) int {
 	}
 	return 0
 }
+
+// CreateProject creates a new GitHub project and returns its details
+func (gc *GitHubClient) CreateProject(ownerType, owner, title, description string) (*Project, error) {
+	mutation := `
+		mutation($ownerId: ID!, $title: String!, $description: String) {
+			createProjectV2(input: {ownerId: $ownerId, title: $title, description: $description}) {
+				projectV2 {
+					id
+					number
+					title
+					url
+				}
+			}
+		}
+	`
+	
+	// First get the owner ID
+	var ownerID string
+	var err error
+	
+	if ownerType == "user" {
+		ownerID, err = gc.getUserID(owner)
+	} else {
+		ownerID, err = gc.getOrganizationID(owner)
+	}
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to get owner ID: %w", err)
+	}
+	
+	variables := map[string]interface{}{
+		"ownerId":     ownerID,
+		"title":       title,
+		"description": description,
+	}
+	
+	data, err := gc.executeGraphQLMutation(mutation, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create project: %w", err)
+	}
+	
+	if createData, ok := data["createProjectV2"].(map[string]interface{}); ok {
+		if projectData, ok := createData["projectV2"].(map[string]interface{}); ok {
+			return &Project{
+				ID:     getString(projectData, "id"),
+				Number: getInt(projectData, "number"),
+				Title:  getString(projectData, "title"),
+				URL:    getString(projectData, "url"),
+			}, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("unexpected response format")
+}
+
+// DeleteProject deletes a GitHub project
+func (gc *GitHubClient) DeleteProject(projectID string) error {
+	mutation := `
+		mutation($projectId: ID!) {
+			deleteProjectV2(input: {projectId: $projectId}) {
+				projectV2 {
+					id
+				}
+			}
+		}
+	`
+	
+	variables := map[string]interface{}{
+		"projectId": projectID,
+	}
+	
+	_, err := gc.executeGraphQLMutation(mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to delete project: %w", err)
+	}
+	
+	return nil
+}
+
+// getUserID gets the user ID for the given username
+func (gc *GitHubClient) getUserID(username string) (string, error) {
+	query := `
+		query($login: String!) {
+			user(login: $login) {
+				id
+			}
+		}
+	`
+	
+	variables := map[string]interface{}{
+		"login": username,
+	}
+	
+	data, err := gc.executeGraphQLRaw(query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user ID: %w", err)
+	}
+	
+	if userData, ok := data["user"].(map[string]interface{}); ok {
+		return getString(userData, "id"), nil
+	}
+	
+	return "", fmt.Errorf("user not found")
+}
+
+// getOrganizationID gets the organization ID for the given organization name
+func (gc *GitHubClient) getOrganizationID(orgName string) (string, error) {
+	query := `
+		query($login: String!) {
+			organization(login: $login) {
+				id
+			}
+		}
+	`
+	
+	variables := map[string]interface{}{
+		"login": orgName,
+	}
+	
+	data, err := gc.executeGraphQLRaw(query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to get organization ID: %w", err)
+	}
+	
+	if orgData, ok := data["organization"].(map[string]interface{}); ok {
+		return getString(orgData, "id"), nil
+	}
+	
+	return "", fmt.Errorf("organization not found")
+}
+
+// executeGraphQLRaw executes a GraphQL query and returns raw data
+func (gc *GitHubClient) executeGraphQLRaw(query string, variables map[string]interface{}) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"query": query,
+	}
+	
+	if variables != nil {
+		payload["variables"] = variables
+	}
+	
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal query: %w", err)
+	}
+	
+	var response struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	
+	err = gc.client.Post("graphql", bytes.NewReader(jsonBytes), &response)
+	if err != nil {
+		return nil, fmt.Errorf("GraphQL request failed: %w", err)
+	}
+	
+	if len(response.Errors) > 0 {
+		errMsg := response.Errors[0].Message
+		if strings.Contains(errMsg, "not found") {
+			return nil, fmt.Errorf("resource not found or insufficient permissions: %s", errMsg)
+		}
+		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
+	}
+	
+	return response.Data, nil
+}

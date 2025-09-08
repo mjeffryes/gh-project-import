@@ -340,3 +340,47 @@ func TestSnapshotDirectory(t *testing.T) {
 		t.Errorf("Expected custom directory %s, got %s", customDir, dir)
 	}
 }
+
+// TestSnapshotCreateProject tests project creation with snapshots
+func TestSnapshotCreateProject(t *testing.T) {
+	client, err := NewSnapshotGitHubClient("CreateProject")
+	if err != nil {
+		t.Fatalf("Failed to create snapshot client: %v", err)
+	}
+	defer client.Close()
+	
+	project, err := client.CreateProject("user", "test-user", "Test Project", "Test description")
+	if err != nil {
+		t.Fatalf("Failed to create project: %v", err)
+	}
+	
+	if project.Title != "Test Project" {
+		t.Errorf("Expected title 'Test Project', got '%s'", project.Title)
+	}
+	
+	if project.ID == "" {
+		t.Error("Expected non-empty project ID")
+	}
+	
+	if project.Number <= 0 {
+		t.Error("Expected positive project number")
+	}
+	
+	t.Logf("Created project: %s (ID: %s, Number: %d)", project.Title, project.ID, project.Number)
+}
+
+// TestSnapshotDeleteProject tests project deletion with snapshots
+func TestSnapshotDeleteProject(t *testing.T) {
+	client, err := NewSnapshotGitHubClient("DeleteProject")
+	if err != nil {
+		t.Fatalf("Failed to create snapshot client: %v", err)
+	}
+	defer client.Close()
+	
+	err = client.DeleteProject("PVT_test123")
+	if err != nil {
+		t.Fatalf("Failed to delete project: %v", err)
+	}
+	
+	t.Log("Successfully deleted project")
+}

@@ -1,0 +1,15 @@
+{
+  "test_name": "DeleteProject",
+  "calls": [
+    {
+      "method": "POST",
+      "url": "graphql",
+      "request_body": "{\"query\":\"\\n\\t\\tmutation($projectId: ID!) {\\n\\t\\t\\tdeleteProjectV2(input: {projectId: $projectId}) {\\n\\t\\t\\t\\tprojectV2 {\\n\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\",\"variables\":{\"projectId\":\"PVT_test123\"}}",
+      "status_code": 200,
+      "response": "{\"data\":{\"deleteProjectV2\":{\"projectV2\":{\"id\":\"PVT_test123\"}}}}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "created": "2024-01-01T10:00:00Z",
+  "updated": "2024-01-01T10:00:00Z"
+}

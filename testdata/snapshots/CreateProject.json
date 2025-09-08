@@ -1,0 +1,23 @@
+{
+  "test_name": "CreateProject",
+  "calls": [
+    {
+      "method": "POST",
+      "url": "graphql",
+      "request_body": "{\"query\":\"\\n\\t\\tquery($login: String!) {\\n\\t\\t\\tuser(login: $login) {\\n\\t\\t\\t\\tid\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\",\"variables\":{\"login\":\"test-user\"}}",
+      "status_code": 200,
+      "response": "{\"data\":{\"user\":{\"id\":\"U_test123\"}}}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    },
+    {
+      "method": "POST",
+      "url": "graphql",
+      "request_body": "{\"query\":\"\\n\\t\\tmutation($ownerId: ID!, $title: String!, $description: String) {\\n\\t\\t\\tcreateProjectV2(input: {ownerId: $ownerId, title: $title, description: $description}) {\\n\\t\\t\\t\\tprojectV2 {\\n\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\tnumber\\n\\t\\t\\t\\t\\ttitle\\n\\t\\t\\t\\t\\turl\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\",\"variables\":{\"ownerId\":\"U_test123\",\"title\":\"Test Project\",\"description\":\"Test description\"}}",
+      "status_code": 200,
+      "response": "{\"data\":{\"createProjectV2\":{\"projectV2\":{\"id\":\"PVT_test_new_123\",\"number\":999,\"title\":\"Test Project\",\"url\":\"https://github.com/test-user/projects/999\"}}}}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "created": "2024-01-01T10:00:00Z",
+  "updated": "2024-01-01T10:00:00Z"
+}
