@@ -1,0 +1,15 @@
+{
+  "test_name": "CreateDraftIssue",
+  "calls": [
+    {
+      "method": "POST", 
+      "url": "graphql",
+      "request_body": "{\"query\":\"\\n\\t\\tmutation($projectId: ID!, $title: String!, $body: String) {\\n\\t\\t\\taddProjectV2DraftIssue(input: {projectId: $projectId, title: $title, body: $body}) {\\n\\t\\t\\t\\tprojectItem {\\n\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\",\"variables\":{\"projectId\":\"PVT_test123\",\"title\":\"Test Draft Issue\",\"body\":\"This is a test draft issue created by snapshot tests\"}}",
+      "status_code": 200,
+      "response": "{\"data\":{\"addProjectV2DraftIssue\":{\"projectItem\":{\"id\":\"ITEM_test123\"}}}}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "created": "2024-01-01T10:00:00Z", 
+  "updated": "2024-01-01T10:00:00Z"
+}

@@ -1,0 +1,14 @@
+{
+  "test_name": "GetUser",
+  "calls": [
+    {
+      "method": "GET",
+      "url": "user",
+      "status_code": 200,
+      "response": "{\"login\":\"test-user\",\"id\":12345,\"name\":\"Test User\"}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "created": "2024-01-01T10:00:00Z",
+  "updated": "2024-01-01T10:00:00Z"
+}

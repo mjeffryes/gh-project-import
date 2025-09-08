@@ -1,0 +1,15 @@
+{
+  "test_name": "GetProjectFields",
+  "calls": [
+    {
+      "method": "POST",
+      "url": "graphql",
+      "request_body": "{\"query\":\"\\n\\t\\tquery {\\n\\t\\t\\tnode(id: \\\"PVT_test123\\\") {\\n\\t\\t\\t\\t... on ProjectV2 {\\n\\t\\t\\t\\t\\tfields(first: 100) {\\n\\t\\t\\t\\t\\t\\tnodes {\\n\\t\\t\\t\\t\\t\\t\\t... on ProjectV2Field {\\n\\t\\t\\t\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\t\\t\\t\\tname\\n\\t\\t\\t\\t\\t\\t\\t\\tdataType\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\t... on ProjectV2SingleSelectField {\\n\\t\\t\\t\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\t\\t\\t\\tname\\n\\t\\t\\t\\t\\t\\t\\t\\tdataType\\n\\t\\t\\t\\t\\t\\t\\t\\toptions {\\n\\t\\t\\t\\t\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\t\\t\\t\\t\\tname\\n\\t\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\"}",
+      "status_code": 200,
+      "response": "{\"data\":{\"node\":{\"fields\":{\"nodes\":[{\"id\":\"field1\",\"name\":\"Status\",\"dataType\":\"SINGLE_SELECT\",\"options\":[{\"id\":\"opt1\",\"name\":\"Todo\"},{\"id\":\"opt2\",\"name\":\"In Progress\"},{\"id\":\"opt3\",\"name\":\"Done\"}]},{\"id\":\"field2\",\"name\":\"Priority\",\"dataType\":\"SINGLE_SELECT\",\"options\":[{\"id\":\"opt4\",\"name\":\"Low\"},{\"id\":\"opt5\",\"name\":\"Medium\"},{\"id\":\"opt6\",\"name\":\"High\"}]},{\"id\":\"field3\",\"name\":\"Estimate\",\"dataType\":\"NUMBER\"}]}}}}",
+      "timestamp": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "created": "2024-01-01T10:00:00Z",
+  "updated": "2024-01-01T10:00:00Z"
+}
