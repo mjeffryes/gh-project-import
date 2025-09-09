@@ -7,16 +7,8 @@ A  GitHub CLI extension that enables bulk import and migration of project items 
 ## 🌟 Features
 
 - **Bulk Import**: Import multiple project items at once from JSON or CSV files
-- **All Item Types**: Support for draft issues, existing issues, and pull requests
-- **Field Mapping**: Automatically map and convert field values including:
-  - Text, Number, Date fields
-  - Single-select dropdowns
-  - User assignments
-  - Iteration fields
-- **Validation**: Comprehensive field validation against project schema
 - **Dry Run**: Preview changes before execution
 - **Progress Tracking**: Real-time import progress with detailed logging
-- **Error Handling**: Robust error handling with clear error messages
 
 ## 📦 Installation
 
@@ -28,13 +20,7 @@ A  GitHub CLI extension that enables bulk import and migration of project items 
 ### Install as GitHub CLI Extension
 
 ```bash
-# Clone and build
-git clone https://github.com/mjeffryes/gh-project-import.git
-cd gh-project-import
-make build
-
-# Install as GitHub CLI extension
-gh extension install .
+gh extension install mjeffryes/gh-project-import
 ```
 
 ### Manual Installation
@@ -44,6 +30,9 @@ gh extension install .
 git clone https://github.com/mjeffryes/gh-project-import.git
 cd gh-project-import
 make build
+
+# optionally add as a local gh client extension:
+gh extension install .
 
 # Binary will be available as ./gh-project-import
 ```
@@ -113,7 +102,6 @@ The tool supports multiple project identifier formats:
 
 - **Organization projects**: `org/project-name` (e.g., `github/Q4-Planning`)
 - **User projects**: `username/project-name` (e.g., `octocat/Personal-Tasks`)
-- **Project number**: `123` (numeric project ID)
 
 ### Field Mapping
 
@@ -123,7 +111,6 @@ The tool automatically maps fields from your input files to GitHub project field
 
 - **`title`** (required): Item title
 - **`url`**: GitHub issue/PR URL (creates linked items)
-- **`notes`**: Item description/body (for draft issues)
 
 #### Custom Fields
 
@@ -189,14 +176,6 @@ make help
 
 ## 🧪 Testing
 
-The project includes comprehensive test coverage:
-
-### Test Types
-
-- **Unit Tests**: Core logic and field conversion
-- **Integration Tests**: End-to-end workflow testing
-- **Snapshot Tests**: GitHub API interaction testing
-
 ### Running Tests
 
 ```bash
@@ -215,7 +194,7 @@ SNAPSHOT_MODE=record make test-record-snapshots
 
 ### Snapshot Testing
 
-The project uses a sophisticated snapshot testing system to test GitHub API interactions without making real API calls:
+The project uses a  snapshot testing system to test GitHub API interactions without making real API calls:
 
 - **Default mode**: Replay from recorded snapshots
 - **Record mode**: Make real API calls and record responses
@@ -270,14 +249,6 @@ We welcome contributions! Please see our contributing guidelines:
 5. Commit your changes (`git commit -m 'Add amazing feature'`)
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
-
-### Development Workflow
-
-1. Make your changes
-2. Run `make check` to ensure tests pass and code is formatted
-3. Add tests for new functionality
-4. Update documentation as needed
-5. Submit a pull request
 
 ## 📝 License
 
