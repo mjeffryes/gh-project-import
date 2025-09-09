@@ -35,7 +35,7 @@ func TestEndToEndImportWorkflow(t *testing.T) {
 			"url": "https://github.com/cli/cli/pull/1",
 			"Status": "Done",
 			"Notes": "Ready for review",
-      "M": "M123"
+      "M": "M1"
 		}
 	]`
 
@@ -47,7 +47,7 @@ func TestEndToEndImportWorkflow(t *testing.T) {
 	// Create test CSV file
 	csvFile := filepath.Join(tmpDir, "test_import.csv")
 	csvContent := `Title,URL,Status,Priority,Estimate,Notes,M,Theme
-Simple Draft Task,,Todo,Low,1,Basic task without URL,M123,Ops
+Simple Draft Task,,Todo,Low,1,Basic task without URL,M2,Ops
 Bug Fix,https://github.com/cli/cli/issues/4,In Progress,High,2,Critical bug,,
 Feature Request,https://github.com/cli/cli/pull/3,Done,Medium,5,New feature implementation,,`
 

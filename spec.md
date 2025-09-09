@@ -105,14 +105,16 @@ gh project-import --source "import_file.csv" --project "owner/project"
 - [x] main.go - parsing user input and core import logic
     - [x] parse CLI flags and arguments
     - [x] discover fields on destination project
+        - [ ] For iteration fields, discover current, future and previous iteration values
     - [x] validate fields and values in the source file match the field schema of the destination project
     - [x] add items from the file to the project (including setting field values)
+        - [ ] Create draft issues idempotently, do not create new draft issues with the same title as an existing draft
 - [x] github.go - library functions that wrap API calls to GitHub
     - [x] **Project Discovery**: Query projects by name or number
     - [x] **Field Schema**: Retrieve field definitions and options
     - [x] **Item Creation**: Add items to destination project
     - [x] **Field Updates**: Set field values on copied items
-    - [x] **Create/Delete Project**: Create or delete a project (only used in e2e test)
+    - [x] **Delete Items**: Delete one or more items from the project (used in tests)
 
 IMPORTANT: All interactions with the github API should be mediated via the functions in github.go
 
@@ -188,11 +190,12 @@ Example:
 ## Implementation Details
 
 ### Performance Considerations
-- [ ] **Batch operations**: Group API calls where possible to minimize requests
 - [x] **Caching**: Cache project schemas and field definitions
 - [x] **Progress tracking**: Show progress for large copy operations
 
 ### Testing Strategy
+- [x] use gotestsum for cleaner test results
+
 - [x] **Unit tests**:
     - [x] field mapping logic
     - [x] interpretation of the user inputs
@@ -202,10 +205,10 @@ Example:
     - [x] Default should be to replay from the snapshot.
     - [x] Make real API calls and record a new snapshot when an environment variable is set
 - [x] **Integration tests**: Test with real GitHub projects (using test repositories)
-    - [x] Create a new source and destination project in this repository
-    - [x] Add test data to the source project
-    - [x] Test copying items from the source project to the destination
-    - [x] Cleanup the test projects when done
+    - [x] Use snapshot system to record integration tests for faster and more reliable replay
+    - [x] Import from JSON to test project
+    - [x] Import from CSV to test project
+    - [x] Cleanup items from the test project when done
 
 ## Security Considerations
 - [x] **Token handling**: Secure handling of GitHub authentication tokens

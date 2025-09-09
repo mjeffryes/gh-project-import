@@ -110,5 +110,11 @@ func TestSnapshotEndToEndWorkflow(t *testing.T) {
 		}
 	}
 
-	// TODO: should clean up by deleting the created item
+	//cleanup: delete the created item
+	err = client.DeleteProjectItem(project.ID, itemID)
+	if err != nil {
+		t.Fatalf("Failed to delete project item: %v", err)
+	}
+
+	t.Log("Successfully deleted project item")
 }

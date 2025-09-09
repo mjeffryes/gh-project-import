@@ -10,6 +10,10 @@ VERSION = $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev"
 COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# Tool paths
+GOTESTSUM = $(shell which gotestsum 2>/dev/null || echo "$(shell go env GOPATH)/bin/gotestsum")
+TEST_CMD = $(shell if [ -x "$(GOTESTSUM)" ]; then echo "$(GOTESTSUM) --format testname"; else echo "go test -v"; fi)
+
 # Build flags
 LDFLAGS = -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)"
 
@@ -42,27 +46,33 @@ install: build ## Build and install to GOPATH/bin
 	go install $(LDFLAGS) .
 
 # Testing targets
+.PHONY: install-gotestsum
+install-gotestsum: ## Install gotestsum for better test output
+	@echo "Installing gotestsum..."
+	go install gotest.tools/gotestsum@latest
+
 .PHONY: test
-test: ## Run all tests
+test: ## Run all tests with gotestsum
 	@echo "Running tests..."
-	go test -v ./...
+	@if [ ! -x "$(GOTESTSUM)" ]; then echo "Note: Install gotestsum with 'make install-gotestsum' for better test output"; fi
+	$(TEST_CMD) ./...
 
 .PHONY: test-unit
 test-unit: ## Run unit tests only
 	@echo "Running unit tests..."
-	go test -v -run "^Test[^S]" ./...
+	$(TEST_CMD) $(if $(findstring gotestsum,$(TEST_CMD)),-- -run "^Test[^S]", -run "^Test[^S]") ./...
 
 # Snapshot management
 .PHONY: test-record-snapshots
 test-record-snapshots: ## Record new snapshots from real API calls
 	@echo "Recording new snapshots..."
 	@echo "Warning: This will make real GitHub API calls!"
-	SNAPSHOT_MODE=record go test -v ./...
+	SNAPSHOT_MODE=record $(TEST_CMD) ./...
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
-	go test -v -coverprofile=coverage.out ./...
+	$(TEST_CMD) $(if $(findstring gotestsum,$(TEST_CMD)),-- -coverprofile=coverage.out, -coverprofile=coverage.out) ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
