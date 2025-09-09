@@ -4,6 +4,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -50,10 +51,10 @@ func TestConfigValidation(t *testing.T) {
 
 func TestFileFormatDetection(t *testing.T) {
 	tests := []struct {
-		filename     string
-		isJSON       bool
-		isCSV        bool
-		expectError  bool
+		filename    string
+		isJSON      bool
+		isCSV       bool
+		expectError bool
 	}{
 		{"test.json", true, false, false},
 		{"test.csv", false, true, false},
@@ -243,7 +244,7 @@ func TestConvertFieldValue(t *testing.T) {
 	numberField := ProjectField{Name: "Number Field", Type: "NUMBER"}
 	dateField := ProjectField{Name: "Date Field", Type: "DATE"}
 	selectField := ProjectField{
-		Name: "Select Field", 
+		Name: "Select Field",
 		Type: "SINGLE_SELECT",
 		Options: []ProjectFieldOption{
 			{ID: "1", Name: "Option 1"},
@@ -260,18 +261,18 @@ func TestConvertFieldValue(t *testing.T) {
 		// Text field tests
 		{"text field with string", "hello", textField, false},
 		{"text field with number", 42, textField, false},
-		
+
 		// Number field tests
 		{"number field with int", 42, numberField, false},
 		{"number field with float", 42.5, numberField, false},
 		{"number field with string number", "42", numberField, false},
 		{"number field with invalid string", "not a number", numberField, true},
-		
+
 		// Date field tests
 		{"date field with ISO date", "2023-01-01", dateField, false},
 		{"date field with full ISO", "2023-01-01T10:00:00Z", dateField, false},
 		{"date field with number", 123, dateField, true},
-		
+
 		// Single select tests
 		{"select field with valid option", "Option 1", selectField, false},
 		{"select field with invalid option", "Option 3", selectField, true},
@@ -379,4 +380,99 @@ Test Item 3,In Progress,2,`
 	if len(items[1].Assignees) != 2 {
 		t.Errorf("Expected 2 assignees, got %d", len(items[1].Assignees))
 	}
+}
+
+func TestComplexFieldValidation(t *testing.T) {
+	// Create test items with various field configurations
+	items := []ImportItem{
+		{
+			Title: "Item with valid fields",
+			Fields: map[string]interface{}{
+				"Status":   "Todo",
+				"Priority": "High",
+				"Estimate": 5,
+				"Notes":    "Test notes",
+				"Due Date": "2024-12-31",
+			},
+		},
+		{
+			Title: "Item with invalid fields",
+			Fields: map[string]interface{}{
+				"Status":      "InvalidStatus", // Invalid single-select option
+				"Priority":    "ValidPriority", // This should be valid
+				"Estimate":    "not-a-number",  // Invalid number
+				"Due Date":    "invalid-date",  // Invalid date format
+				"NonExistent": "value",         // Field doesn't exist
+			},
+		},
+	}
+
+	fields := []ProjectField{
+		{ID: "field1", Name: "Status", Type: "SINGLE_SELECT", Options: []ProjectFieldOption{
+			{ID: "opt1", Name: "Todo"},
+			{ID: "opt2", Name: "In Progress"},
+			{ID: "opt3", Name: "Done"},
+		}},
+		{ID: "field2", Name: "Priority", Type: "SINGLE_SELECT", Options: []ProjectFieldOption{
+			{ID: "opt4", Name: "Low"},
+			{ID: "opt5", Name: "Medium"},
+			{ID: "opt6", Name: "High"},
+		}},
+		{ID: "field3", Name: "Estimate", Type: "NUMBER"},
+		{ID: "field4", Name: "Notes", Type: "TEXT"},
+		{ID: "field5", Name: "Due Date", Type: "DATE"},
+	}
+
+	fieldMap := make(map[string]ProjectField)
+	for _, field := range fields {
+		fieldMap[field.Name] = field
+	}
+
+	warnings := validateItemFields(items, fieldMap, Config{Verbose: true})
+
+	// We should get warnings for invalid values
+	if len(warnings) == 0 {
+		t.Error("Expected validation warnings but got none")
+	}
+
+	// Check specific warning types
+	hasMissingFieldWarning := false
+
+	for _, warning := range warnings {
+		if contains(warning, "NonExistent") {
+			hasMissingFieldWarning = true
+		}
+		// Log all warnings for debugging
+		t.Logf("Warning: %s", warning)
+	}
+
+	if !hasMissingFieldWarning {
+		t.Error("Expected warning about non-existent field")
+	}
+
+	// Test that invalid values are detected during conversion (not in pre-validation)
+	testFieldMap := make(map[string]ProjectField)
+	for _, field := range fields {
+		testFieldMap[field.Name] = field
+	}
+
+	// Test conversion errors directly
+	statusField := testFieldMap["Status"]
+	_, err := convertFieldValue("InvalidStatus", statusField)
+	if err == nil {
+		t.Error("Expected error for invalid single-select option")
+	}
+
+	estimateField := testFieldMap["Estimate"]
+	_, err = convertFieldValue("not-a-number", estimateField)
+	if err == nil {
+		t.Error("Expected error for invalid number format")
+	}
+
+	t.Logf("Validation warnings: %v", warnings)
+}
+
+// Helper function to check if string contains substring
+func contains(str, substr string) bool {
+	return strings.Contains(str, substr)
 }

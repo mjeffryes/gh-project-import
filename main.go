@@ -196,7 +196,7 @@ func runImport(config Config) error {
 }
 
 // importItems handles the actual import of items to a project
-func importItems(client *GitHubClient, project *Project, items []ImportItem, fieldMap map[string]ProjectField, config Config) error {
+func importItems(client GitHubClient, project *Project, items []ImportItem, fieldMap map[string]ProjectField, config Config) error {
 
 	successCount := 0
 	errorCount := 0
@@ -230,7 +230,7 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 
 	// Calculate field statistics
 	fieldStats := calculateFieldStatistics(items, fieldMap)
-	
+
 	if !config.Quiet {
 		if errorCount > 0 {
 			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
@@ -241,7 +241,7 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 		} else {
 			fmt.Printf("✓ Imported %d items to \"%s\"\n", successCount, project.Title)
 		}
-		
+
 		// Field mapping statistics
 		if fieldStats.preservedFields > 0 {
 			fmt.Printf("✓ Preserved %d field mappings\n", fieldStats.preservedFields)
@@ -264,16 +264,16 @@ func importItems(client *GitHubClient, project *Project, items []ImportItem, fie
 
 // FieldStatistics holds statistics about field mappings
 type FieldStatistics struct {
-	preservedFields    int
-	skippedFields      int
-	skippedFieldNames  []string
+	preservedFields   int
+	skippedFields     int
+	skippedFieldNames []string
 }
 
 // calculateFieldStatistics analyzes field usage and compatibility
 func calculateFieldStatistics(items []ImportItem, fieldMap map[string]ProjectField) FieldStatistics {
 	uniqueFields := make(map[string]bool)
 	skippedFields := make(map[string]bool)
-	
+
 	// Analyze all fields used in items
 	for _, item := range items {
 		for fieldName := range item.Fields {
@@ -283,13 +283,13 @@ func calculateFieldStatistics(items []ImportItem, fieldMap map[string]ProjectFie
 			}
 		}
 	}
-	
+
 	// Convert skipped fields map to slice for reporting
 	var skippedFieldNames []string
 	for fieldName := range skippedFields {
 		skippedFieldNames = append(skippedFieldNames, fieldName)
 	}
-	
+
 	return FieldStatistics{
 		preservedFields:   len(uniqueFields) - len(skippedFields),
 		skippedFields:     len(skippedFields),
@@ -298,7 +298,7 @@ func calculateFieldStatistics(items []ImportItem, fieldMap map[string]ProjectFie
 }
 
 // importSingleItem imports a single item to a project
-func importSingleItem(client *GitHubClient, project *Project, item ImportItem, fieldMap map[string]ProjectField, config Config) error {
+func importSingleItem(client GitHubClient, project *Project, item ImportItem, fieldMap map[string]ProjectField, config Config) error {
 	var itemID string
 	var err error
 
@@ -341,7 +341,7 @@ func importSingleItem(client *GitHubClient, project *Project, item ImportItem, f
 }
 
 // setItemFields sets field values for a project item
-func setItemFields(client *GitHubClient, projectID, itemID string, item ImportItem, fieldMap map[string]ProjectField, config Config) error {
+func setItemFields(client GitHubClient, projectID, itemID string, item ImportItem, fieldMap map[string]ProjectField, config Config) error {
 	// Process all custom fields from the Fields map
 	for fieldName, fieldValue := range item.Fields {
 		field, exists := fieldMap[fieldName]

@@ -23,9 +23,9 @@ type Project struct {
 
 // ProjectField represents a field in a GitHub project
 type ProjectField struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Type string `json:"dataType"`
+	ID      string               `json:"id"`
+	Name    string               `json:"name"`
+	Type    string               `json:"dataType"`
 	Options []ProjectFieldOption `json:"options,omitempty"`
 }
 
@@ -42,56 +42,66 @@ type ProjectItem struct {
 	Fields  map[string]interface{} `json:"fieldValues"`
 }
 
-// GitHubClient wraps the GitHub API client
-type GitHubClient struct {
+type GitHubClient interface {
+	GetUser() (string, error)
+	FindProject(identifier string) (*Project, error)
+	GetProjectFields(projectID string) ([]ProjectField, error)
+	CreateProjectItem(projectID, contentID string) (string, error)
+	CreateDraftIssue(projectID, title, body string) (string, error)
+	SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error
+	GetIssueOrPR(url string) (map[string]interface{}, error)
+}
+
+// RealGitHubClient wraps the GitHub API client
+type RealGitHubClient struct {
 	client api.RESTClient
 }
 
-// NewGitHubClient creates a new GitHub API client
-func NewGitHubClient() (*GitHubClient, error) {
+// NewRealGitHubClient creates a new GitHub API client
+func NewGitHubClient() (GitHubClient, error) {
 	client, err := api.DefaultRESTClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub client: %w", err)
 	}
-	
-	return &GitHubClient{client: *client}, nil
+
+	return &RealGitHubClient{client: *client}, nil
 }
 
 // GetUser returns the authenticated user information
-func (gc *GitHubClient) GetUser() (string, error) {
+func (gc *RealGitHubClient) GetUser() (string, error) {
 	response := struct {
 		Login string `json:"login"`
 	}{}
-	
+
 	err := gc.client.Get("user", &response)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user: %w", err)
 	}
-	
+
 	return response.Login, nil
 }
 
 // FindProject finds a project by identifier (owner/project-name or project-number)
-func (gc *GitHubClient) FindProject(identifier string) (*Project, error) {
+func (gc *RealGitHubClient) FindProject(identifier string) (*Project, error) {
 	// Check if identifier is a number (project number)
 	if num, err := strconv.Atoi(identifier); err == nil {
 		return gc.findProjectByNumber(num)
 	}
-	
+
 	// Parse owner/project-name format
 	parts := strings.Split(identifier, "/")
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid project identifier format: %s (expected owner/project-name or project-number)", identifier)
 	}
-	
+
 	owner := parts[0]
 	projectName := strings.Join(parts[1:], "/")
-	
+
 	return gc.findProjectByName(owner, projectName)
 }
 
 // findProjectByNumber finds a project by its number
-func (gc *GitHubClient) findProjectByNumber(number int) (*Project, error) {
+func (gc *RealGitHubClient) findProjectByNumber(number int) (*Project, error) {
 	query := fmt.Sprintf(`
 		query {
 			node(id: "PVT_kwDO%d") {
@@ -104,30 +114,30 @@ func (gc *GitHubClient) findProjectByNumber(number int) (*Project, error) {
 			}
 		}
 	`, number)
-	
+
 	return gc.executeGraphQLQuery(query, nil, func(data map[string]interface{}) (*Project, error) {
 		nodeData, ok := data["node"].(map[string]interface{})
 		if !ok || nodeData == nil {
 			return nil, fmt.Errorf("project with number %d not found", number)
 		}
-		
+
 		return &Project{
-			ID:          getString(nodeData, "id"),
-			Number:      getInt(nodeData, "number"),
-			Title:       getString(nodeData, "title"),
-			URL:         getString(nodeData, "url"),
+			ID:     getString(nodeData, "id"),
+			Number: getInt(nodeData, "number"),
+			Title:  getString(nodeData, "title"),
+			URL:    getString(nodeData, "url"),
 		}, nil
 	})
 }
 
 // findProjectByName finds a project by owner and name
-func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) {
+func (gc *RealGitHubClient) findProjectByName(owner, name string) (*Project, error) {
 	// First, determine if owner is an organization or user
 	isOrg, err := gc.isOrganization(owner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine if %s is organization: %w", owner, err)
 	}
-	
+
 	var query string
 	if isOrg {
 		query = fmt.Sprintf(`
@@ -160,10 +170,10 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 			}
 		`, owner, name)
 	}
-	
+
 	return gc.executeGraphQLQuery(query, nil, func(data map[string]interface{}) (*Project, error) {
 		var projects []Project
-		
+
 		if isOrg {
 			if orgData, ok := data["organization"].(map[string]interface{}); ok {
 				if projectsData, ok := orgData["projectsV2"].(map[string]interface{}); ok {
@@ -171,10 +181,10 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 						for _, node := range nodes {
 							if nodeMap, ok := node.(map[string]interface{}); ok {
 								projects = append(projects, Project{
-									ID:          getString(nodeMap, "id"),
-									Number:      getInt(nodeMap, "number"),
-									Title:       getString(nodeMap, "title"),
-									URL:         getString(nodeMap, "url"),
+									ID:     getString(nodeMap, "id"),
+									Number: getInt(nodeMap, "number"),
+									Title:  getString(nodeMap, "title"),
+									URL:    getString(nodeMap, "url"),
 								})
 							}
 						}
@@ -188,10 +198,10 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 						for _, node := range nodes {
 							if nodeMap, ok := node.(map[string]interface{}); ok {
 								projects = append(projects, Project{
-									ID:          getString(nodeMap, "id"),
-									Number:      getInt(nodeMap, "number"),
-									Title:       getString(nodeMap, "title"),
-									URL:         getString(nodeMap, "url"),
+									ID:     getString(nodeMap, "id"),
+									Number: getInt(nodeMap, "number"),
+									Title:  getString(nodeMap, "title"),
+									URL:    getString(nodeMap, "url"),
 								})
 							}
 						}
@@ -199,34 +209,34 @@ func (gc *GitHubClient) findProjectByName(owner, name string) (*Project, error) 
 				}
 			}
 		}
-		
+
 		// Find exact match by title
 		for _, project := range projects {
 			if project.Title == name {
 				return &project, nil
 			}
 		}
-		
+
 		return nil, fmt.Errorf("project %s/%s not found", owner, name)
 	})
 }
 
 // isOrganization checks if the given login is an organization
-func (gc *GitHubClient) isOrganization(login string) (bool, error) {
+func (gc *RealGitHubClient) isOrganization(login string) (bool, error) {
 	response := struct {
 		Type string `json:"type"`
 	}{}
-	
+
 	err := gc.client.Get("users/"+login, &response)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return response.Type == "Organization", nil
 }
 
 // GetProjectFields retrieves the field schema for a project
-func (gc *GitHubClient) GetProjectFields(projectID string) ([]ProjectField, error) {
+func (gc *RealGitHubClient) GetProjectFields(projectID string) ([]ProjectField, error) {
 	query := fmt.Sprintf(`
 		query {
 			node(id: "%s") {
@@ -258,16 +268,16 @@ func (gc *GitHubClient) GetProjectFields(projectID string) ([]ProjectField, erro
 			}
 		}
 	`, projectID)
-	
+
 	payload := map[string]interface{}{
 		"query": query,
 	}
-	
+
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal query: %w", err)
 	}
-	
+
 	var response struct {
 		Data struct {
 			Node struct {
@@ -280,16 +290,16 @@ func (gc *GitHubClient) GetProjectFields(projectID string) ([]ProjectField, erro
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	
+
 	err = gc.client.Post("graphql", bytes.NewReader(jsonBytes), &response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project fields: %w", err)
 	}
-	
+
 	if len(response.Errors) > 0 {
 		return nil, fmt.Errorf("GraphQL error: %s", response.Errors[0].Message)
 	}
-	
+
 	var fields []ProjectField
 	for _, node := range response.Data.Node.Fields.Nodes {
 		var field ProjectField
@@ -298,12 +308,12 @@ func (gc *GitHubClient) GetProjectFields(projectID string) ([]ProjectField, erro
 		}
 		fields = append(fields, field)
 	}
-	
+
 	return fields, nil
 }
 
 // CreateProjectItem creates a new item in the specified project
-func (gc *GitHubClient) CreateProjectItem(projectID, contentID string) (string, error) {
+func (gc *RealGitHubClient) CreateProjectItem(projectID, contentID string) (string, error) {
 	mutation := `
 		mutation($projectId: ID!, $contentId: ID!) {
 			addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
@@ -313,28 +323,28 @@ func (gc *GitHubClient) CreateProjectItem(projectID, contentID string) (string, 
 			}
 		}
 	`
-	
+
 	variables := map[string]interface{}{
 		"projectId": projectID,
 		"contentId": contentID,
 	}
-	
+
 	data, err := gc.executeGraphQLMutation(mutation, variables)
 	if err != nil {
 		return "", fmt.Errorf("failed to create project item: %w", err)
 	}
-	
+
 	if addData, ok := data["addProjectV2ItemById"].(map[string]interface{}); ok {
 		if itemData, ok := addData["item"].(map[string]interface{}); ok {
 			return getString(itemData, "id"), nil
 		}
 	}
-	
+
 	return "", fmt.Errorf("unexpected response format")
 }
 
 // CreateDraftIssue creates a draft issue and returns its ID
-func (gc *GitHubClient) CreateDraftIssue(projectID, title, body string) (string, error) {
+func (gc *RealGitHubClient) CreateDraftIssue(projectID, title, body string) (string, error) {
 	mutation := `
 		mutation($projectId: ID!, $title: String!, $body: String) {
 			addProjectV2DraftIssue(input: {projectId: $projectId, title: $title, body: $body}) {
@@ -344,29 +354,29 @@ func (gc *GitHubClient) CreateDraftIssue(projectID, title, body string) (string,
 			}
 		}
 	`
-	
+
 	variables := map[string]interface{}{
 		"projectId": projectID,
 		"title":     title,
 		"body":      body,
 	}
-	
+
 	data, err := gc.executeGraphQLMutation(mutation, variables)
 	if err != nil {
 		return "", fmt.Errorf("failed to create draft issue: %w", err)
 	}
-	
+
 	if addData, ok := data["addProjectV2DraftIssue"].(map[string]interface{}); ok {
 		if itemData, ok := addData["projectItem"].(map[string]interface{}); ok {
 			return getString(itemData, "id"), nil
 		}
 	}
-	
+
 	return "", fmt.Errorf("unexpected response format")
 }
 
 // SetProjectItemFieldValue sets a field value for a project item
-func (gc *GitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error {
+func (gc *RealGitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error {
 	mutation := `
 		mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
 			updateProjectV2ItemFieldValue(input: {
@@ -381,19 +391,19 @@ func (gc *GitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID stri
 			}
 		}
 	`
-	
+
 	variables := map[string]interface{}{
 		"projectId": projectID,
 		"itemId":    itemID,
 		"fieldId":   fieldID,
 		"value":     value,
 	}
-	
+
 	_, err := gc.executeGraphQLMutation(mutation, variables)
 	if err != nil {
 		return fmt.Errorf("failed to set field value: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -402,33 +412,33 @@ func ParseRepositoryURL(url string) (string, string, error) {
 	// Regular expression to match GitHub URLs
 	re := regexp.MustCompile(`github\.com/([^/]+)/([^/]+)`)
 	matches := re.FindStringSubmatch(url)
-	
+
 	if len(matches) < 3 {
 		return "", "", fmt.Errorf("invalid GitHub URL format: %s", url)
 	}
-	
+
 	return matches[1], matches[2], nil
 }
 
 // GetIssueOrPR retrieves issue or PR information by URL
-func (gc *GitHubClient) GetIssueOrPR(url string) (map[string]interface{}, error) {
+func (gc *RealGitHubClient) GetIssueOrPR(url string) (map[string]interface{}, error) {
 	owner, repo, err := ParseRepositoryURL(url)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Extract issue/PR number from URL
 	re := regexp.MustCompile(`/(?:issues|pull)/(\d+)`)
 	matches := re.FindStringSubmatch(url)
 	if len(matches) < 2 {
 		return nil, fmt.Errorf("could not extract issue/PR number from URL: %s", url)
 	}
-	
+
 	number := matches[1]
-	
+
 	// Try to get as issue first, then as PR
 	var response map[string]interface{}
-	
+
 	// Check if it's an issue
 	err = gc.client.Get(fmt.Sprintf("repos/%s/%s/issues/%s", owner, repo, number), &response)
 	if err != nil {
@@ -438,36 +448,36 @@ func (gc *GitHubClient) GetIssueOrPR(url string) (map[string]interface{}, error)
 			return nil, fmt.Errorf("failed to get issue/PR %s: %w", url, err)
 		}
 	}
-	
+
 	return response, nil
 }
 
 // executeGraphQLQuery executes a GraphQL query and processes the response
-func (gc *GitHubClient) executeGraphQLQuery(query string, variables map[string]interface{}, processor func(map[string]interface{}) (*Project, error)) (*Project, error) {
+func (gc *RealGitHubClient) executeGraphQLQuery(query string, variables map[string]interface{}, processor func(map[string]interface{}) (*Project, error)) (*Project, error) {
 	payload := map[string]interface{}{
 		"query": query,
 	}
 	if variables != nil {
 		payload["variables"] = variables
 	}
-	
+
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal query: %w", err)
 	}
-	
+
 	var response struct {
 		Data   map[string]interface{} `json:"data"`
 		Errors []struct {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	
+
 	err = gc.client.Post("graphql", bytes.NewReader(jsonBytes), &response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GraphQL query: %w", err)
 	}
-	
+
 	if len(response.Errors) > 0 {
 		errMsg := response.Errors[0].Message
 		// Provide more helpful error messages for common issues
@@ -479,34 +489,34 @@ func (gc *GitHubClient) executeGraphQLQuery(query string, variables map[string]i
 		}
 		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
 	}
-	
+
 	return processor(response.Data)
 }
 
 // executeGraphQLMutation executes a GraphQL mutation
-func (gc *GitHubClient) executeGraphQLMutation(mutation string, variables map[string]interface{}) (map[string]interface{}, error) {
+func (gc *RealGitHubClient) executeGraphQLMutation(mutation string, variables map[string]interface{}) (map[string]interface{}, error) {
 	payload := map[string]interface{}{
 		"query":     mutation,
 		"variables": variables,
 	}
-	
+
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal mutation: %w", err)
 	}
-	
+
 	var response struct {
 		Data   map[string]interface{} `json:"data"`
 		Errors []struct {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	
+
 	err = gc.client.Post("graphql", bytes.NewReader(jsonBytes), &response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GraphQL mutation: %w", err)
 	}
-	
+
 	if len(response.Errors) > 0 {
 		errMsg := response.Errors[0].Message
 		// Provide more helpful error messages for common issues
@@ -521,7 +531,7 @@ func (gc *GitHubClient) executeGraphQLMutation(mutation string, variables map[st
 		}
 		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
 	}
-	
+
 	return response.Data, nil
 }
 
@@ -544,86 +554,8 @@ func getInt(m map[string]interface{}, key string) int {
 	return 0
 }
 
-// CreateProject creates a new GitHub project and returns its details
-func (gc *GitHubClient) CreateProject(ownerType, owner, title, description string) (*Project, error) {
-	mutation := `
-		mutation($ownerId: ID!, $title: String!, $description: String) {
-			createProjectV2(input: {ownerId: $ownerId, title: $title, description: $description}) {
-				projectV2 {
-					id
-					number
-					title
-					url
-				}
-			}
-		}
-	`
-	
-	// First get the owner ID
-	var ownerID string
-	var err error
-	
-	if ownerType == "user" {
-		ownerID, err = gc.getUserID(owner)
-	} else {
-		ownerID, err = gc.getOrganizationID(owner)
-	}
-	
-	if err != nil {
-		return nil, fmt.Errorf("failed to get owner ID: %w", err)
-	}
-	
-	variables := map[string]interface{}{
-		"ownerId":     ownerID,
-		"title":       title,
-		"description": description,
-	}
-	
-	data, err := gc.executeGraphQLMutation(mutation, variables)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create project: %w", err)
-	}
-	
-	if createData, ok := data["createProjectV2"].(map[string]interface{}); ok {
-		if projectData, ok := createData["projectV2"].(map[string]interface{}); ok {
-			return &Project{
-				ID:     getString(projectData, "id"),
-				Number: getInt(projectData, "number"),
-				Title:  getString(projectData, "title"),
-				URL:    getString(projectData, "url"),
-			}, nil
-		}
-	}
-	
-	return nil, fmt.Errorf("unexpected response format")
-}
-
-// DeleteProject deletes a GitHub project
-func (gc *GitHubClient) DeleteProject(projectID string) error {
-	mutation := `
-		mutation($projectId: ID!) {
-			deleteProjectV2(input: {projectId: $projectId}) {
-				projectV2 {
-					id
-				}
-			}
-		}
-	`
-	
-	variables := map[string]interface{}{
-		"projectId": projectID,
-	}
-	
-	_, err := gc.executeGraphQLMutation(mutation, variables)
-	if err != nil {
-		return fmt.Errorf("failed to delete project: %w", err)
-	}
-	
-	return nil
-}
-
 // getUserID gets the user ID for the given username
-func (gc *GitHubClient) getUserID(username string) (string, error) {
+func (gc *RealGitHubClient) getUserID(username string) (string, error) {
 	query := `
 		query($login: String!) {
 			user(login: $login) {
@@ -631,25 +563,25 @@ func (gc *GitHubClient) getUserID(username string) (string, error) {
 			}
 		}
 	`
-	
+
 	variables := map[string]interface{}{
 		"login": username,
 	}
-	
+
 	data, err := gc.executeGraphQLRaw(query, variables)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user ID: %w", err)
 	}
-	
+
 	if userData, ok := data["user"].(map[string]interface{}); ok {
 		return getString(userData, "id"), nil
 	}
-	
+
 	return "", fmt.Errorf("user not found")
 }
 
 // getOrganizationID gets the organization ID for the given organization name
-func (gc *GitHubClient) getOrganizationID(orgName string) (string, error) {
+func (gc *RealGitHubClient) getOrganizationID(orgName string) (string, error) {
 	query := `
 		query($login: String!) {
 			organization(login: $login) {
@@ -657,50 +589,50 @@ func (gc *GitHubClient) getOrganizationID(orgName string) (string, error) {
 			}
 		}
 	`
-	
+
 	variables := map[string]interface{}{
 		"login": orgName,
 	}
-	
+
 	data, err := gc.executeGraphQLRaw(query, variables)
 	if err != nil {
 		return "", fmt.Errorf("failed to get organization ID: %w", err)
 	}
-	
+
 	if orgData, ok := data["organization"].(map[string]interface{}); ok {
 		return getString(orgData, "id"), nil
 	}
-	
+
 	return "", fmt.Errorf("organization not found")
 }
 
 // executeGraphQLRaw executes a GraphQL query and returns raw data
-func (gc *GitHubClient) executeGraphQLRaw(query string, variables map[string]interface{}) (map[string]interface{}, error) {
+func (gc *RealGitHubClient) executeGraphQLRaw(query string, variables map[string]interface{}) (map[string]interface{}, error) {
 	payload := map[string]interface{}{
 		"query": query,
 	}
-	
+
 	if variables != nil {
 		payload["variables"] = variables
 	}
-	
+
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal query: %w", err)
 	}
-	
+
 	var response struct {
 		Data   map[string]interface{} `json:"data"`
 		Errors []struct {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	
+
 	err = gc.client.Post("graphql", bytes.NewReader(jsonBytes), &response)
 	if err != nil {
 		return nil, fmt.Errorf("GraphQL request failed: %w", err)
 	}
-	
+
 	if len(response.Errors) > 0 {
 		errMsg := response.Errors[0].Message
 		if strings.Contains(errMsg, "not found") {
@@ -708,6 +640,6 @@ func (gc *GitHubClient) executeGraphQLRaw(query string, variables map[string]int
 		}
 		return nil, fmt.Errorf("GraphQL error: %s", errMsg)
 	}
-	
+
 	return response.Data, nil
 }

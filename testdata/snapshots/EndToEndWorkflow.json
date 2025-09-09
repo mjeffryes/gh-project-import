@@ -3,40 +3,82 @@
   "calls": [
     {
       "method": "API",
-      "url": "GetUser",
-      "status_code": 200,
-      "response": "\"test-user\"",
-      "timestamp": "2024-01-01T10:00:00Z"
-    },
-    {
-      "method": "API",
       "url": "FindProject",
       "status_code": 200,
-      "response": "{\"id\":\"PVT_test123\",\"number\":1,\"title\":\"Test Project\",\"url\":\"https://github.com/test/projects/1\"}",
-      "timestamp": "2024-01-01T10:00:00Z"
+      "response": "{\"id\":\"PVT_kwHOABIlSs4BCng6\",\"number\":5,\"title\":\"Import Test Project\",\"url\":\"https://github.com/users/mjeffryes/projects/5\"}",
+      "timestamp": "2025-09-09T07:08:44.34957-07:00"
     },
     {
       "method": "API",
       "url": "GetProjectFields",
       "status_code": 200,
-      "response": "[{\"id\":\"field1\",\"name\":\"Status\",\"dataType\":\"SINGLE_SELECT\",\"options\":[{\"id\":\"opt1\",\"name\":\"Todo\"},{\"id\":\"opt2\",\"name\":\"In Progress\"},{\"id\":\"opt3\",\"name\":\"Done\"}]},{\"id\":\"field2\",\"name\":\"Priority\",\"dataType\":\"SINGLE_SELECT\",\"options\":[{\"id\":\"opt4\",\"name\":\"Low\"},{\"id\":\"opt5\",\"name\":\"Medium\"},{\"id\":\"opt6\",\"name\":\"High\"}]},{\"id\":\"field3\",\"name\":\"Estimate\",\"dataType\":\"NUMBER\"}]",
-      "timestamp": "2024-01-01T10:00:00Z"
+      "response": "[{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6Q\",\"name\":\"Title\",\"dataType\":\"TITLE\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6U\",\"name\":\"Assignees\",\"dataType\":\"ASSIGNEES\"},{\"id\":\"PVTSSF_lAHOABIlSs4BCng6zg0xn6Y\",\"name\":\"Status\",\"dataType\":\"SINGLE_SELECT\",\"options\":[{\"id\":\"f75ad846\",\"name\":\"Todo\"},{\"id\":\"47fc9ee4\",\"name\":\"In Progress\"},{\"id\":\"98236657\",\"name\":\"Done\"},{\"id\":\"32fa0bd8\",\"name\":\"Blocked\"}]},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6c\",\"name\":\"Labels\",\"dataType\":\"LABELS\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6g\",\"name\":\"Linked pull requests\",\"dataType\":\"LINKED_PULL_REQUESTS\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6k\",\"name\":\"Milestone\",\"dataType\":\"MILESTONE\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6o\",\"name\":\"Repository\",\"dataType\":\"REPOSITORY\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6s\",\"name\":\"Reviewers\",\"dataType\":\"REVIEWERS\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn6w\",\"name\":\"Parent issue\",\"dataType\":\"PARENT_ISSUE\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0xn60\",\"name\":\"Sub-issues progress\",\"dataType\":\"SUB_ISSUES_PROGRESS\"},{\"id\":\"PVTF_lAHOABIlSs4BCng6zg0x0bM\",\"name\":\"Notes\",\"dataType\":\"TEXT\"},{\"id\":\"PVTIF_lAHOABIlSs4BCng6zg0x0e0\",\"name\":\"M\",\"dataType\":\"ITERATION\"},{\"id\":\"PVTSSF_lAHOABIlSs4BCng6zg0x0jY\",\"name\":\"Theme\",\"dataType\":\"SINGLE_SELECT\",\"options\":[{\"id\":\"0b0752cd\",\"name\":\"Ops\"},{\"id\":\"ccf88a72\",\"name\":\"PTO\"}]}]",
+      "timestamp": "2025-09-09T07:08:44.599127-07:00"
     },
     {
       "method": "API",
       "url": "CreateDraftIssue",
       "status_code": 200,
-      "response": "\"ITEM_test123\"",
-      "timestamp": "2024-01-01T10:00:00Z"
+      "response": "\"PVTI_lAHOABIlSs4BCng6zgeiqbM\"",
+      "timestamp": "2025-09-09T07:08:45.095398-07:00"
     },
     {
       "method": "API",
       "url": "SetProjectItemFieldValue",
       "status_code": 200,
       "response": "\"success\"",
-      "timestamp": "2024-01-01T10:00:00Z"
+      "timestamp": "2025-09-09T07:08:45.361606-07:00"
+    },
+    {
+      "method": "API",
+      "url": "SetProjectItemFieldValue",
+      "status_code": 200,
+      "response": "\"success\"",
+      "timestamp": "2025-09-09T07:08:45.672759-07:00"
+    },
+    {
+      "method": "API",
+      "url": "GetIssueOrPR",
+      "status_code": 200,
+      "response": "{\"active_lock_reason\":null,\"assignee\":null,\"assignees\":[],\"author_association\":\"CONTRIBUTOR\",\"body\":\"Hi @github/ce-cli, This is a more granular task list than what is listed in [Neha's demo planning doc](https://docs.google.com/document/d/18ym-_xjFTSXe0-xzgaBn13Su7MEhWfLE5qSNPJV4M0A/edit). \\r\\n\\r\\nIf you want to share what you are working on put it on the list and put your name next to it. If you are looking for what to do next, find something that isn't claimed and is on this list!\\r\\n\\r\\n- [x] [prototype] gh pr checkout\\r\\n- [x] [prototype] gh pr list\\r\\n  - [x] [prototype] CI status @mislav\\r\\n  - [x] [prototype] Requested changes @mislav\\r\\n- [x] [master] Move graphql code to master @probablycorey \\r\\n- [x] [master] Add tests for some of the PR commands @probablycorey \\r\\n- [x] [master] Add generic error handling pattern\\r\\n- [ ] [master] Reimagine how the app determines its context https://github.com/github/gh-cli/issues/2 @vilmibm \\r\\n- [ ] [master] Incorporate the stable parts of last weeks demo _this task is still too open-ended and @probablycorey wants to talk about it at our fortnightly sync\\r\\n\",\"closed_at\":\"2019-10-14T21:25:33Z\",\"closed_by\":{\"avatar_url\":\"https://avatars.githubusercontent.com/u/596?v=4\",\"events_url\":\"https://api.github.com/users/probablycorey/events{/privacy}\",\"followers_url\":\"https://api.github.com/users/probablycorey/followers\",\"following_url\":\"https://api.github.com/users/probablycorey/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/probablycorey/gists{/gist_id}\",\"gravatar_id\":\"\",\"html_url\":\"https://github.com/probablycorey\",\"id\":596,\"login\":\"probablycorey\",\"node_id\":\"MDQ6VXNlcjU5Ng==\",\"organizations_url\":\"https://api.github.com/users/probablycorey/orgs\",\"received_events_url\":\"https://api.github.com/users/probablycorey/received_events\",\"repos_url\":\"https://api.github.com/users/probablycorey/repos\",\"site_admin\":false,\"starred_url\":\"https://api.github.com/users/probablycorey/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/probablycorey/subscriptions\",\"type\":\"User\",\"url\":\"https://api.github.com/users/probablycorey\",\"user_view_type\":\"public\"},\"comments\":4,\"comments_url\":\"https://api.github.com/repos/cli/cli/issues/4/comments\",\"created_at\":\"2019-10-07T18:46:56Z\",\"events_url\":\"https://api.github.com/repos/cli/cli/issues/4/events\",\"html_url\":\"https://github.com/cli/cli/issues/4\",\"id\":503625087,\"issue_dependencies_summary\":{\"blocked_by\":0,\"blocking\":0,\"total_blocked_by\":0,\"total_blocking\":0},\"labels\":[],\"labels_url\":\"https://api.github.com/repos/cli/cli/issues/4/labels{/name}\",\"locked\":false,\"milestone\":null,\"node_id\":\"MDU6SXNzdWU1MDM2MjUwODc=\",\"number\":4,\"performed_via_github_app\":null,\"reactions\":{\"+1\":0,\"-1\":0,\"confused\":0,\"eyes\":0,\"heart\":0,\"hooray\":0,\"laugh\":0,\"rocket\":0,\"total_count\":0,\"url\":\"https://api.github.com/repos/cli/cli/issues/4/reactions\"},\"repository_url\":\"https://api.github.com/repos/cli/cli\",\"state\":\"closed\",\"state_reason\":\"completed\",\"sub_issues_summary\":{\"completed\":0,\"percent_completed\":0,\"total\":0},\"timeline_url\":\"https://api.github.com/repos/cli/cli/issues/4/timeline\",\"title\":\"Task list – Oct. 7th\",\"type\":null,\"updated_at\":\"2019-10-14T21:25:33Z\",\"url\":\"https://api.github.com/repos/cli/cli/issues/4\",\"user\":{\"avatar_url\":\"https://avatars.githubusercontent.com/u/596?v=4\",\"events_url\":\"https://api.github.com/users/probablycorey/events{/privacy}\",\"followers_url\":\"https://api.github.com/users/probablycorey/followers\",\"following_url\":\"https://api.github.com/users/probablycorey/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/probablycorey/gists{/gist_id}\",\"gravatar_id\":\"\",\"html_url\":\"https://github.com/probablycorey\",\"id\":596,\"login\":\"probablycorey\",\"node_id\":\"MDQ6VXNlcjU5Ng==\",\"organizations_url\":\"https://api.github.com/users/probablycorey/orgs\",\"received_events_url\":\"https://api.github.com/users/probablycorey/received_events\",\"repos_url\":\"https://api.github.com/users/probablycorey/repos\",\"site_admin\":false,\"starred_url\":\"https://api.github.com/users/probablycorey/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/probablycorey/subscriptions\",\"type\":\"User\",\"url\":\"https://api.github.com/users/probablycorey\",\"user_view_type\":\"public\"}}",
+      "timestamp": "2025-09-09T07:08:45.950653-07:00"
+    },
+    {
+      "method": "API",
+      "url": "CreateProjectItem",
+      "status_code": 200,
+      "response": "\"PVTI_lAHOABIlSs4BCng6zgeiqQs\"",
+      "timestamp": "2025-09-09T07:08:46.222709-07:00"
+    },
+    {
+      "method": "API",
+      "url": "SetProjectItemFieldValue",
+      "status_code": 200,
+      "response": "\"success\"",
+      "timestamp": "2025-09-09T07:08:46.610729-07:00"
+    },
+    {
+      "method": "API",
+      "url": "GetIssueOrPR",
+      "status_code": 200,
+      "response": "{\"active_lock_reason\":null,\"assignee\":null,\"assignees\":[],\"author_association\":\"CONTRIBUTOR\",\"body\":\"It was bugging me that our text prototypes had the branch name in the PR list but our prototype didn't. Now that we use graphql to get PR information we **can** display the branch names!\\r\\n\\r\\nHere is what it looks like in this PR.\\r\\n![](https://d.pr/i/x5TWoM+)\",\"closed_at\":\"2019-10-09T20:12:25Z\",\"closed_by\":{\"avatar_url\":\"https://avatars.githubusercontent.com/u/596?v=4\",\"events_url\":\"https://api.github.com/users/probablycorey/events{/privacy}\",\"followers_url\":\"https://api.github.com/users/probablycorey/followers\",\"following_url\":\"https://api.github.com/users/probablycorey/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/probablycorey/gists{/gist_id}\",\"gravatar_id\":\"\",\"html_url\":\"https://github.com/probablycorey\",\"id\":596,\"login\":\"probablycorey\",\"node_id\":\"MDQ6VXNlcjU5Ng==\",\"organizations_url\":\"https://api.github.com/users/probablycorey/orgs\",\"received_events_url\":\"https://api.github.com/users/probablycorey/received_events\",\"repos_url\":\"https://api.github.com/users/probablycorey/repos\",\"site_admin\":false,\"starred_url\":\"https://api.github.com/users/probablycorey/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/probablycorey/subscriptions\",\"type\":\"User\",\"url\":\"https://api.github.com/users/probablycorey\",\"user_view_type\":\"public\"},\"comments\":0,\"comments_url\":\"https://api.github.com/repos/cli/cli/issues/3/comments\",\"created_at\":\"2019-10-07T18:27:37Z\",\"draft\":false,\"events_url\":\"https://api.github.com/repos/cli/cli/issues/3/events\",\"html_url\":\"https://github.com/cli/cli/pull/3\",\"id\":503616148,\"labels\":[],\"labels_url\":\"https://api.github.com/repos/cli/cli/issues/3/labels{/name}\",\"locked\":false,\"milestone\":null,\"node_id\":\"MDExOlB1bGxSZXF1ZXN0MzI1NDMzODg1\",\"number\":3,\"performed_via_github_app\":null,\"pull_request\":{\"diff_url\":\"https://github.com/cli/cli/pull/3.diff\",\"html_url\":\"https://github.com/cli/cli/pull/3\",\"merged_at\":\"2019-10-09T20:12:25Z\",\"patch_url\":\"https://github.com/cli/cli/pull/3.patch\",\"url\":\"https://api.github.com/repos/cli/cli/pulls/3\"},\"reactions\":{\"+1\":0,\"-1\":0,\"confused\":0,\"eyes\":0,\"heart\":0,\"hooray\":0,\"laugh\":0,\"rocket\":0,\"total_count\":0,\"url\":\"https://api.github.com/repos/cli/cli/issues/3/reactions\"},\"repository_url\":\"https://api.github.com/repos/cli/cli\",\"state\":\"closed\",\"state_reason\":null,\"timeline_url\":\"https://api.github.com/repos/cli/cli/issues/3/timeline\",\"title\":\"Add branch name to `gh pr list`\",\"type\":null,\"updated_at\":\"2019-10-09T20:43:50Z\",\"url\":\"https://api.github.com/repos/cli/cli/issues/3\",\"user\":{\"avatar_url\":\"https://avatars.githubusercontent.com/u/596?v=4\",\"events_url\":\"https://api.github.com/users/probablycorey/events{/privacy}\",\"followers_url\":\"https://api.github.com/users/probablycorey/followers\",\"following_url\":\"https://api.github.com/users/probablycorey/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/probablycorey/gists{/gist_id}\",\"gravatar_id\":\"\",\"html_url\":\"https://github.com/probablycorey\",\"id\":596,\"login\":\"probablycorey\",\"node_id\":\"MDQ6VXNlcjU5Ng==\",\"organizations_url\":\"https://api.github.com/users/probablycorey/orgs\",\"received_events_url\":\"https://api.github.com/users/probablycorey/received_events\",\"repos_url\":\"https://api.github.com/users/probablycorey/repos\",\"site_admin\":false,\"starred_url\":\"https://api.github.com/users/probablycorey/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/probablycorey/subscriptions\",\"type\":\"User\",\"url\":\"https://api.github.com/users/probablycorey\",\"user_view_type\":\"public\"}}",
+      "timestamp": "2025-09-09T07:08:46.902113-07:00"
+    },
+    {
+      "method": "API",
+      "url": "CreateProjectItem",
+      "status_code": 200,
+      "response": "\"PVTI_lAHOABIlSs4BCng6zgeiqRU\"",
+      "timestamp": "2025-09-09T07:08:47.198855-07:00"
+    },
+    {
+      "method": "API",
+      "url": "SetProjectItemFieldValue",
+      "status_code": 200,
+      "response": "\"success\"",
+      "timestamp": "2025-09-09T07:08:47.616812-07:00"
     }
   ],
-  "created": "2024-01-01T10:00:00Z",
-  "updated": "2024-01-01T10:00:00Z"
+  "created": "2025-09-09T07:08:43.973145-07:00",
+  "updated": "2025-09-09T07:08:47.616864-07:00"
 }

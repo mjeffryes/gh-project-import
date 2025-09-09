@@ -12,19 +12,6 @@ import (
 	"time"
 )
 
-// GitHubClientInterface defines the interface for GitHub operations
-type GitHubClientInterface interface {
-	GetUser() (string, error)
-	FindProject(identifier string) (*Project, error)
-	GetProjectFields(projectID string) ([]ProjectField, error)
-	CreateDraftIssue(projectID, title, body string) (string, error)
-	CreateProjectItem(projectID, contentID string) (string, error)
-	GetIssueOrPR(url string) (map[string]interface{}, error)
-	SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error
-	CreateProject(ownerType, owner, title, description string) (*Project, error)
-	DeleteProject(projectID string) error
-}
-
 // SnapshotMode defines the operating mode for snapshot tests
 type SnapshotMode int
 
@@ -54,31 +41,31 @@ type Snapshot struct {
 
 // SnapshotGitHubClient wraps GitHubClient to provide snapshot functionality
 type SnapshotGitHubClient struct {
-	realClient   *GitHubClient
-	mode         SnapshotMode
-	snapshotDir  string
-	testName     string
-	snapshot     *Snapshot
-	callIndex    int
+	realClient  GitHubClient
+	mode        SnapshotMode
+	snapshotDir string
+	testName    string
+	snapshot    *Snapshot
+	callIndex   int
 }
 
 // NewSnapshotGitHubClient creates a new snapshot-enabled GitHub client
 func NewSnapshotGitHubClient(testName string) (*SnapshotGitHubClient, error) {
 	mode := getSnapshotMode()
 	snapshotDir := getSnapshotDir()
-	
+
 	// Create snapshot directory if it doesn't exist
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create snapshot directory: %w", err)
 	}
-	
+
 	client := &SnapshotGitHubClient{
 		mode:        mode,
 		snapshotDir: snapshotDir,
 		testName:    testName,
 		callIndex:   0,
 	}
-	
+
 	// For record and bypass modes, create a real GitHub client
 	if mode == SnapshotModeRecord || mode == SnapshotModeBypass {
 		realClient, err := NewGitHubClient()
@@ -87,12 +74,12 @@ func NewSnapshotGitHubClient(testName string) (*SnapshotGitHubClient, error) {
 		}
 		client.realClient = realClient
 	}
-	
+
 	// Load or create snapshot
 	if err := client.loadOrCreateSnapshot(); err != nil {
 		return nil, fmt.Errorf("failed to load snapshot: %w", err)
 	}
-	
+
 	return client, nil
 }
 
@@ -107,7 +94,7 @@ func (sgc *SnapshotGitHubClient) Close() error {
 // loadOrCreateSnapshot loads an existing snapshot or creates a new one
 func (sgc *SnapshotGitHubClient) loadOrCreateSnapshot() error {
 	snapshotPath := sgc.getSnapshotPath()
-	
+
 	if sgc.mode == SnapshotModeRecord {
 		// In record mode, create a new snapshot
 		sgc.snapshot = &Snapshot{
@@ -118,22 +105,22 @@ func (sgc *SnapshotGitHubClient) loadOrCreateSnapshot() error {
 		}
 		return nil
 	}
-	
+
 	// In replay mode, load existing snapshot
 	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
 		return fmt.Errorf("snapshot file not found: %s (try running with SNAPSHOT_MODE=record to create it)", snapshotPath)
 	}
-	
+
 	data, err := os.ReadFile(snapshotPath)
 	if err != nil {
 		return fmt.Errorf("failed to read snapshot file: %w", err)
 	}
-	
+
 	var snapshot Snapshot
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return fmt.Errorf("failed to parse snapshot file: %w", err)
 	}
-	
+
 	sgc.snapshot = &snapshot
 	return nil
 }
@@ -141,17 +128,17 @@ func (sgc *SnapshotGitHubClient) loadOrCreateSnapshot() error {
 // saveSnapshot saves the current snapshot to disk
 func (sgc *SnapshotGitHubClient) saveSnapshot() error {
 	sgc.snapshot.Updated = time.Now()
-	
+
 	data, err := json.MarshalIndent(sgc.snapshot, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal snapshot: %w", err)
 	}
-	
+
 	snapshotPath := sgc.getSnapshotPath()
 	if err := os.WriteFile(snapshotPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write snapshot file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -168,7 +155,7 @@ func (sgc *SnapshotGitHubClient) recordCall(method, url, requestBody string, sta
 	if sgc.mode != SnapshotModeRecord {
 		return
 	}
-	
+
 	call := APICall{
 		Method:      method,
 		URL:         url,
@@ -177,7 +164,7 @@ func (sgc *SnapshotGitHubClient) recordCall(method, url, requestBody string, sta
 		Response:    response,
 		Timestamp:   time.Now(),
 	}
-	
+
 	sgc.snapshot.Calls = append(sgc.snapshot.Calls, call)
 }
 
@@ -186,7 +173,7 @@ func (sgc *SnapshotGitHubClient) getNextCall() (*APICall, error) {
 	if sgc.callIndex >= len(sgc.snapshot.Calls) {
 		return nil, fmt.Errorf("no more recorded calls available (call %d)", sgc.callIndex+1)
 	}
-	
+
 	call := &sgc.snapshot.Calls[sgc.callIndex]
 	sgc.callIndex++
 	return call, nil
@@ -202,7 +189,7 @@ func (sgc *SnapshotGitHubClient) executeWithSnapshot(
 	case SnapshotModeBypass:
 		// Direct call without recording
 		return realFunc()
-	
+
 	case SnapshotModeRecord:
 		// Execute real call and record the result
 		result, err := realFunc()
@@ -211,19 +198,19 @@ func (sgc *SnapshotGitHubClient) executeWithSnapshot(
 			sgc.recordCall("API", operation, "", 500, fmt.Sprintf(`{"error": "%s"}`, err.Error()))
 			return nil, err
 		}
-		
+
 		// Record successful response
 		responseData, _ := json.Marshal(result)
 		sgc.recordCall("API", operation, "", 200, string(responseData))
 		return result, nil
-	
+
 	case SnapshotModeReplay:
 		// Replay from snapshot
 		call, err := sgc.getNextCall()
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if call.StatusCode != 200 {
 			var errorResp struct {
 				Error string `json:"error"`
@@ -233,15 +220,15 @@ func (sgc *SnapshotGitHubClient) executeWithSnapshot(
 			}
 			return nil, fmt.Errorf("API error (status %d)", call.StatusCode)
 		}
-		
+
 		return parseResponse(call.Response)
-	
+
 	default:
 		return nil, fmt.Errorf("unknown snapshot mode: %v", sgc.mode)
 	}
 }
 
-// GetUser implements GitHubClientInterface
+// GetUser implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) GetUser() (string, error) {
 	result, err := sgc.executeWithSnapshot(
 		"GetUser",
@@ -252,14 +239,14 @@ func (sgc *SnapshotGitHubClient) GetUser() (string, error) {
 			return response, nil
 		},
 	)
-	
+
 	if err != nil {
 		return "", err
 	}
 	return result.(string), nil
 }
 
-// FindProject implements GitHubClientInterface
+// FindProject implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) FindProject(identifier string) (*Project, error) {
 	result, err := sgc.executeWithSnapshot(
 		"FindProject",
@@ -274,14 +261,14 @@ func (sgc *SnapshotGitHubClient) FindProject(identifier string) (*Project, error
 			return &project, nil
 		},
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
 	return result.(*Project), nil
 }
 
-// GetProjectFields implements GitHubClientInterface
+// GetProjectFields implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) GetProjectFields(projectID string) ([]ProjectField, error) {
 	result, err := sgc.executeWithSnapshot(
 		"GetProjectFields",
@@ -296,14 +283,14 @@ func (sgc *SnapshotGitHubClient) GetProjectFields(projectID string) ([]ProjectFi
 			return fields, nil
 		},
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
 	return result.([]ProjectField), nil
 }
 
-// CreateDraftIssue implements GitHubClientInterface
+// CreateDraftIssue implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) CreateDraftIssue(projectID, title, body string) (string, error) {
 	result, err := sgc.executeWithSnapshot(
 		"CreateDraftIssue",
@@ -314,14 +301,14 @@ func (sgc *SnapshotGitHubClient) CreateDraftIssue(projectID, title, body string)
 			return response, nil
 		},
 	)
-	
+
 	if err != nil {
 		return "", err
 	}
 	return result.(string), nil
 }
 
-// CreateProjectItem implements GitHubClientInterface
+// CreateProjectItem implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) CreateProjectItem(projectID, contentID string) (string, error) {
 	result, err := sgc.executeWithSnapshot(
 		"CreateProjectItem",
@@ -332,14 +319,14 @@ func (sgc *SnapshotGitHubClient) CreateProjectItem(projectID, contentID string) 
 			return response, nil
 		},
 	)
-	
+
 	if err != nil {
 		return "", err
 	}
 	return result.(string), nil
 }
 
-// GetIssueOrPR implements GitHubClientInterface
+// GetIssueOrPR implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) GetIssueOrPR(url string) (map[string]interface{}, error) {
 	result, err := sgc.executeWithSnapshot(
 		"GetIssueOrPR",
@@ -354,14 +341,14 @@ func (sgc *SnapshotGitHubClient) GetIssueOrPR(url string) (map[string]interface{
 			return content, nil
 		},
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
 	return result.(map[string]interface{}), nil
 }
 
-// SetProjectItemFieldValue implements GitHubClientInterface
+// SetProjectItemFieldValue implements GitHubClient interface
 func (sgc *SnapshotGitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error {
 	_, err := sgc.executeWithSnapshot(
 		"SetProjectItemFieldValue",
@@ -373,45 +360,7 @@ func (sgc *SnapshotGitHubClient) SetProjectItemFieldValue(projectID, itemID, fie
 			return "success", nil
 		},
 	)
-	
-	return err
-}
 
-// CreateProject implements GitHubClientInterface
-func (sgc *SnapshotGitHubClient) CreateProject(ownerType, owner, title, description string) (*Project, error) {
-	result, err := sgc.executeWithSnapshot(
-		"CreateProject",
-		func() (interface{}, error) {
-			return sgc.realClient.CreateProject(ownerType, owner, title, description)
-		},
-		func(response string) (interface{}, error) {
-			var project Project
-			if err := json.Unmarshal([]byte(response), &project); err != nil {
-				return nil, err
-			}
-			return &project, nil
-		},
-	)
-	
-	if err != nil {
-		return nil, err
-	}
-	return result.(*Project), nil
-}
-
-// DeleteProject implements GitHubClientInterface
-func (sgc *SnapshotGitHubClient) DeleteProject(projectID string) error {
-	_, err := sgc.executeWithSnapshot(
-		"DeleteProject",
-		func() (interface{}, error) {
-			err := sgc.realClient.DeleteProject(projectID)
-			return "success", err
-		},
-		func(response string) (interface{}, error) {
-			return "success", nil
-		},
-	)
-	
 	return err
 }
 
