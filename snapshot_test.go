@@ -55,3 +55,22 @@ func TestSnapshotDirectory(t *testing.T) {
 		t.Errorf("Expected custom directory %s, got %s", customDir, dir)
 	}
 }
+
+// TestSnapshotDeleteProjectItem tests project item deletion with snapshots
+func TestSnapshotDeleteProjectItem(t *testing.T) {
+	client, err := NewSnapshotGitHubClient("DeleteProjectItem")
+	if err != nil {
+		t.Fatalf("Failed to create snapshot client: %v", err)
+	}
+	defer client.Close()
+
+	projectID := "PVT_test123"
+	itemID := "ITEM_test456"
+
+	err = client.DeleteProjectItem(projectID, itemID)
+	if err != nil {
+		t.Fatalf("Failed to delete project item: %v", err)
+	}
+
+	t.Log("Successfully deleted project item")
+}

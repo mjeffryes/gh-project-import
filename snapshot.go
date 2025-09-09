@@ -364,6 +364,22 @@ func (sgc *SnapshotGitHubClient) SetProjectItemFieldValue(projectID, itemID, fie
 	return err
 }
 
+// DeleteProjectItem implements GitHubClient interface
+func (sgc *SnapshotGitHubClient) DeleteProjectItem(projectID, itemID string) error {
+	_, err := sgc.executeWithSnapshot(
+		"DeleteProjectItem",
+		func() (interface{}, error) {
+			err := sgc.realClient.DeleteProjectItem(projectID, itemID)
+			return "success", err
+		},
+		func(response string) (interface{}, error) {
+			return "success", nil
+		},
+	)
+
+	return err
+}
+
 // Helper functions
 
 // getSnapshotMode returns the current snapshot mode from environment

@@ -1,0 +1,15 @@
+{
+  "test_name": "DeleteProjectItem",
+  "calls": [
+    {
+      "method": "API",
+      "url": "DeleteProjectItem",
+      "request_body": "",
+      "status_code": 200,
+      "response": "\"success\"",
+      "timestamp": "2025-01-09T10:00:00Z"
+    }
+  ],
+  "created": "2025-01-09T10:00:00Z",
+  "updated": "2025-01-09T10:00:00Z"
+}

@@ -50,6 +50,7 @@ type GitHubClient interface {
 	CreateDraftIssue(projectID, title, body string) (string, error)
 	SetProjectItemFieldValue(projectID, itemID, fieldID string, value interface{}) error
 	GetIssueOrPR(url string) (map[string]interface{}, error)
+	DeleteProjectItem(projectID, itemID string) error
 }
 
 // RealGitHubClient wraps the GitHub API client
@@ -402,6 +403,32 @@ func (gc *RealGitHubClient) SetProjectItemFieldValue(projectID, itemID, fieldID 
 	_, err := gc.executeGraphQLMutation(mutation, variables)
 	if err != nil {
 		return fmt.Errorf("failed to set field value: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteProjectItem deletes an item from a project
+func (gc *RealGitHubClient) DeleteProjectItem(projectID, itemID string) error {
+	mutation := `
+		mutation($projectId: ID!, $itemId: ID!) {
+			deleteProjectV2Item(input: {
+				projectId: $projectId,
+				itemId: $itemId
+			}) {
+				deletedItemId
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"projectId": projectID,
+		"itemId":    itemID,
+	}
+
+	_, err := gc.executeGraphQLMutation(mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to delete project item: %w", err)
 	}
 
 	return nil
