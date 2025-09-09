@@ -282,19 +282,3 @@ We welcome contributions! Please see our contributing guidelines:
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built using [GitHub CLI Go library](https://github.com/cli/go-gh)
-- Powered by [Cobra](https://github.com/spf13/cobra) for CLI interface
-- Testing enhanced with [gotestsum](https://github.com/gotestsum/gotestsum)
-
-## 📞 Support
-
-- 🐛 **Bug Reports**: [Create an issue](https://github.com/mjeffryes/gh-project-import/issues)
-- 💡 **Feature Requests**: [Create an issue](https://github.com/mjeffryes/gh-project-import/issues)
-- ❓ **Questions**: [Discussions](https://github.com/mjeffryes/gh-project-import/discussions)
-
----
-
-**Made with ❤️ for GitHub Projects v2**
