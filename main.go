@@ -439,11 +439,14 @@ func convertFieldValue(value interface{}, field ProjectField) (interface{}, erro
 		return nil, fmt.Errorf("user field must be a string")
 
 	case "ITERATION":
-		if _, ok := value.(string); ok {
-			// For iteration fields, we need to find the iteration ID
-			// This is complex and may require additional API calls
-			// For now, return an error to indicate it's not implemented
-			return nil, fmt.Errorf("iteration fields not yet implemented")
+		if str, ok := value.(string); ok {
+			// Find the iteration ID for the given name
+			for _, iteration := range field.Iterations {
+				if iteration.Title == str {
+					return map[string]interface{}{"iterationId": iteration.ID}, nil
+				}
+			}
+			return nil, fmt.Errorf("iteration '%s' not found", str)
 		}
 		return nil, fmt.Errorf("iteration field must be a string")
 

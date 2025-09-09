@@ -23,16 +23,23 @@ type Project struct {
 
 // ProjectField represents a field in a GitHub project
 type ProjectField struct {
-	ID      string               `json:"id"`
-	Name    string               `json:"name"`
-	Type    string               `json:"dataType"`
-	Options []ProjectFieldOption `json:"options,omitempty"`
+	ID         string               `json:"id"`
+	Name       string               `json:"name"`
+	Type       string               `json:"dataType"`
+	Options    []ProjectFieldOption `json:"options,omitempty"`
+	Iterations []IterationOption    `json:"iterations,omitempty"`
 }
 
 // ProjectFieldOption represents an option for single-select fields
 type ProjectFieldOption struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+// IterationOption represents an iteration option for iteration fields
+type IterationOption struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
 }
 
 // ProjectItem represents an item in a GitHub project
@@ -262,6 +269,12 @@ func (gc *RealGitHubClient) GetProjectFields(projectID string) ([]ProjectField, 
 								id
 								name
 								dataType
+								configuration {
+									iterations {
+										id
+										title
+									}
+								}
 							}
 						}
 					}
@@ -307,6 +320,28 @@ func (gc *RealGitHubClient) GetProjectFields(projectID string) ([]ProjectField, 
 		if err := json.Unmarshal(node, &field); err != nil {
 			continue // Skip fields we can't parse
 		}
+		
+		// Handle iteration fields specially to extract iterations from configuration
+		if field.Type == "ITERATION" {
+			// Parse node as map to access configuration
+			var nodeMap map[string]interface{}
+			if err := json.Unmarshal(node, &nodeMap); err == nil {
+				if config, ok := nodeMap["configuration"].(map[string]interface{}); ok {
+					if iterations, ok := config["iterations"].([]interface{}); ok {
+						for _, iter := range iterations {
+							if iterMap, ok := iter.(map[string]interface{}); ok {
+								iteration := IterationOption{
+									ID:    getString(iterMap, "id"),
+									Title: getString(iterMap, "title"),
+								}
+								field.Iterations = append(field.Iterations, iteration)
+							}
+						}
+					}
+				}
+			}
+		}
+		
 		fields = append(fields, field)
 	}
 
